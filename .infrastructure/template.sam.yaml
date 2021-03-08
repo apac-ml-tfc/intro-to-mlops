@@ -14,7 +14,7 @@ Parameters:
 
   DefaultCodeRepo:
     Type: String
-    Default: https://github.com/apac-ml-tfc/sagemaker-workshop-101
+    Default: https://github.com/apac-ml-tfc/intro-to-mlops
     Description: URL of the git code repository to clone in to the SageMaker notebook.
 
   VpcId:
@@ -206,6 +206,20 @@ Resources:
       Layers:
         - !Ref LambdaCommonLayer
 
+  # Custom resource implementation for creating Studio users' default apps for faster start-up
+  UserDefaultAppFunction:
+    Type: 'AWS::Serverless::Function'
+    DependsOn: LambdaExecutionPolicy
+    Properties:
+      Description: CloudFormation custom resource implementation for SageMaker Studio users' default apps
+      CodeUri: ./fn-defaultapp/
+      Handler: main.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.8
+      Timeout: 900
+      Layers:
+        - !Ref LambdaCommonLayer
+
   StudioDomain:
     Type: 'Custom::StudioDomain'
     Properties:
@@ -342,6 +356,16 @@ Resources:
       UserProfileName: !GetAtt UserProfile.UserProfileName
       HomeEfsFileSystemUid: !GetAtt UserProfile.HomeEfsFileSystemUid
       GitRepository: !Ref DefaultCodeRepo
+
+  # Once the user is set up, create their default JupyterServer app to speed up start time:
+  UserDefaultApp:
+    Type: 'Custom::UserDefaultApp'
+    DependsOn:
+      - UserSetup
+    Properties:
+      ServiceToken: !GetAtt UserDefaultAppFunction.Arn
+      DomainId: !GetAtt StudioDomain.DomainId
+      UserProfileName: 'workshop-user' #!Ref UserProfileName
 
 
 Outputs:

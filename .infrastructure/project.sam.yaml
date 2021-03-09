@@ -1,0 +1,194 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Description: >-
+  Workshop event template for Service Catalog - Provision a machine learning project (S3 buckets, demo data)
+  and grant existing SageMaker Studio users access by way of their registered SM Execution Roles.
+
+Parameters:
+  ProjectId:
+    Description: >-
+      Used as a prefix for project resources.  Can be up to 12 characters, lowercase letters (a-z) only.
+    Type: String
+    Default: creditmodel
+    AllowedPattern: "^[a-z]{1,12}"
+    ConstraintDescription: The ProjectId can be up to 12 characters, lowercase letters (a-z) only.
+  StudioUsers:
+    Description: >-
+      Comma-separated list of SageMaker Studio users to initially grant access (via their Execution Roles)
+      to the project.
+    Type: String
+    Default: workshop-user
+    AllowedPattern: "^[a-zA-Z0-9](-*[a-zA-Z0-9]){0,62}(,[a-zA-Z0-9](-*[a-zA-Z0-9]){0,62})*$"
+    ConstraintDescription: The ProjectId can be up to 12 characters, lowercase letters (a-z) only.
+
+Resources:
+
+  # Raw data bucket (initial target for modelling)
+  RawBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+
+  RawBucketParam:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: ID of the project raw data bucket
+      Name: !Sub '/${ProjectId}-Project/RawBucket'
+      Type: String
+      Value: !Ref RawBucket
+
+  # Raw data bucket (initial target for modelling)
+  SandboxBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+
+  SandboxBucketParam:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Description: ID of the project sandbox data bucket
+      Name: !Sub '/${ProjectId}-Project/SandboxBucket'
+      Type: String
+      Value: !Ref SandboxBucket
+
+  DataSciencePolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Path: !Sub '/${ProjectId}/'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: RawBucketRead
+            Effect: Allow
+            Action:
+              - 's3:Get*'
+              - 's3:Head*'
+              - 's3:List*'
+              - 's3:Select*'
+            Resource:
+              - !GetAtt RawBucket.Arn
+              - !Sub '${RawBucket.Arn}/*'
+          - Sid: SandboxBucketReadWrite
+            Effect: Allow
+            Action:
+              - 's3:*'
+            Resource:
+              - !GetAtt SandboxBucket.Arn
+              - !Sub '${SandboxBucket.Arn}/*'
+
+  SetupLambdaPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Path: !Sub '/${ProjectId}/'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: RawBucketReadWrite  # For DemoData
+            Effect: Allow
+            Action:
+              - 's3:*'
+            Resource:
+              - !GetAtt RawBucket.Arn
+              - !Sub '${RawBucket.Arn}/*'
+          - Sid: SageMakerQueryUsers  # For data science policy attachment
+            Effect: Allow
+            Action:
+              - 'sagemaker:DescribeUserProfile'
+              - 'sagemaker:ListDomains'
+            Resource: '*'
+          - Sid: IAMAttachDataSciPolicy  # For data science policy attachment
+            Effect: Allow
+            Action:
+              - 'iam:AttachRolePolicy'
+              - 'iam:DetachRolePolicy'
+            Resource: '*'  # Any role
+            Condition:
+              ArnEquals:
+                iam:PolicyARN: !Ref DataSciencePolicy
+
+  # Permissions for the Lambda functions implementing our custom CFN resources:
+  SetupLambdaRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - !Ref SetupLambdaPolicy
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Path: !Sub '/${ProjectId}/'
+
+  # Shared layer loading the cfn-response module (doesn't seem to auto-import with SAM Lambdas)
+  LambdaCommonLayer:
+    Type: 'AWS::Serverless::LayerVersion'
+    Properties:
+      ContentUri: ./lambda-common/
+      CompatibleRuntimes:
+        - python3.8
+        - python3.7
+        - python3.6
+    Metadata:
+      BuildMethod: python3.8
+
+  # Custom resource implementation for creating Studio users' default apps for faster start-up
+  DemoDataFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Description: >-
+        CloudFormation custom resource implementation to load demo data into the project raw bucket
+      CodeUri: ./fn-demodata/
+      Handler: main.lambda_handler
+      Role: !GetAtt SetupLambdaRole.Arn
+      Runtime: python3.8
+      Timeout: 900
+      Layers:
+        - !Ref LambdaCommonLayer
+
+  DemoData:
+    Type: 'Custom::DemoData'
+    DependsOn:
+      - RawBucket
+    Properties:
+      ServiceToken: !GetAtt DemoDataFunction.Arn
+      Dataset: german
+      Bucket: !Ref RawBucket
+      Prefix: ''
+
+  # Custom resource implementation for creating Studio users' default apps for faster start-up
+  UserPermissionsFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Description: >-
+        CloudFormation custom resource implementation to add an IAM policy to SMStudio user execution roles
+      CodeUri: ./fn-userperms/
+      Handler: main.lambda_handler
+      Role: !GetAtt SetupLambdaRole.Arn
+      Runtime: python3.8
+      Timeout: 900
+      Layers:
+        - !Ref LambdaCommonLayer
+
+  DataScientistPolicyAssociations:
+    Type: 'Custom::UserPermissions'
+    DependsOn:
+      - DataSciencePolicy
+    Properties:
+      ServiceToken: !GetAtt UserPermissionsFunction.Arn
+      Users: !Split [',', !Ref StudioUsers]
+      PolicyArn: !Ref DataSciencePolicy

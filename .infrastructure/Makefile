@@ -3,7 +3,7 @@
 ##########################
 
 AWS_BRANCH?="dev"
-STACK_NAME?="sm101stack"
+STACK_NAME?="mlopsintro"
 #DEPLOYMENT_BUCKET_NAME?="UNDEFINED"
 DEPLOYMENT_BUCKET_PREFIX?=""
 SAM_BUILD_EXTRA_ARGS?=""
@@ -20,29 +20,49 @@ build: ##=> Build SAM template & assets to CloudFormation on S3
 	$(info [*] Building AWS SAM stack...)
 	sam build \
 			--use-container \
-			--template template.sam.yaml \
+			--template project.sam.yaml \
 			$(SAM_BUILD_EXTRA_ARGS) && \
 		sam package \
 			--s3-bucket $${DEPLOYMENT_BUCKET_NAME} \
 			--s3-prefix $${DEPLOYMENT_BUCKET_PREFIX}sam \
-			--output-template-file template.tmp.yaml && \
-		aws s3 cp template.tmp.yaml \
-			s3://$${DEPLOYMENT_BUCKET_NAME}/$${DEPLOYMENT_BUCKET_PREFIX}SM101.cf.yaml
+			--output-template-file project.tmp.yaml && \
+		aws s3 cp project.tmp.yaml \
+			s3://$${DEPLOYMENT_BUCKET_NAME}/$${DEPLOYMENT_BUCKET_PREFIX}project.cf.yaml
+	sam build \
+			--use-container \
+			--template environment.sam.yaml \
+			$(SAM_BUILD_EXTRA_ARGS) && \
+		sam package \
+			--s3-bucket $${DEPLOYMENT_BUCKET_NAME} \
+			--s3-prefix $${DEPLOYMENT_BUCKET_PREFIX}sam \
+			--output-template-file environment.tmp.yaml && \
+		aws s3 cp environment.tmp.yaml \
+			s3://$${DEPLOYMENT_BUCKET_NAME}/$${DEPLOYMENT_BUCKET_PREFIX}environment.cf.yaml
 
 create: ##=> Create services stack (only)
 	$(info [*] Deploying...)
+	# aws cloudformation create-stack \
+	# 		--template-body file://project.tmp.yaml \
+	# 		--stack-name $(STACK_NAME) \
+	# 		--capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
+	# 		--disable-rollback \
+	# 		--parameters ParameterKey=StudioUsers,ParameterValue=tmpuser
 	aws cloudformation create-stack \
-			--template-body file://template.tmp.yaml \
+			--template-body file://environment.tmp.yaml \
 			--stack-name $(STACK_NAME) \
 			--capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
 			--disable-rollback
 			# (disable rollback for debugging)
-			# TODO: Support --parameter-overrides through MAKE?
+			# TODO: Support --parameters through MAKE?
 
 deploy: ##=> Deploy services (flexible create or update)
 	$(info [*] Deploying...)
+	# sam deploy \
+	# 		--template-file project.tmp.yaml \
+	# 		--stack-name $(STACK_NAME) \
+	# 		--capabilities CAPABILITY_IAM
 	sam deploy \
-			--template-file template.tmp.yaml \
+			--template-file environment.tmp.yaml \
 			--stack-name $(STACK_NAME) \
 			--capabilities CAPABILITY_IAM
 			# TODO: Support --parameter-overrides through MAKE?

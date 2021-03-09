@@ -1,0 +1,6 @@
+# Tried upgrading boto3/s3fs/pandas versions to force compatibility for to_csv("s3://..."), but it didn't
+# work... This combo at least works for the fallback s3fs-based approach.
+boto3>=1.17.15
+pandas>=1.0.1
+requests
+s3fs>=0.5.2

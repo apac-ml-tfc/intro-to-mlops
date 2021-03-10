@@ -28,6 +28,12 @@ Parameters:
       Comma-separated list of subnet IDs to use (e.g. subnet-xxxxxx), or blank to use all default subnets.
     Default: ''
 
+  SCPrincipal:
+    Type: String
+    Description: >-
+      IAM principal you'll use to provision the "ML Project" product from service catalog (i.e. the role or
+      user you use in the AWS console). ARN suffix
+    Default: 'role/Admin'
 Resources:
 
 ########  THE BASICS: SageMaker perms & notebook instance  ########
@@ -135,6 +141,13 @@ Resources:
               - elasticfilesystem:ClientWrite
               - elasticfilesystem:DescribeMountTargets
             Resource: '*'  # TODO: Restrict
+          - Sid: SageMakerDefaultAppSetup
+            Effect: Allow
+            Action:
+              - sagemaker:CreateApp
+            # App ARNs go app/${DomainId}/${UserProfileName}/${AppType}/${AppName}
+            Resource:
+              - !Sub 'arn:${AWS::Partition}:sagemaker:${AWS::Region}:${AWS::AccountId}:app/*/*/jupyterserver/*'
           - Sid: SageMakerDomainPermission
             Effect: Allow
             Action:
@@ -366,6 +379,52 @@ Resources:
       ServiceToken: !GetAtt UserDefaultAppFunction.Arn
       DomainId: !GetAtt StudioDomain.DomainId
       UserProfileName: 'workshop-user' #!Ref UserProfileName
+
+
+########  SERVICE CATALOG: Provisioning for an ML Project Environment  ########
+
+  SCMLPortfolio:
+    Type: 'AWS::ServiceCatalog::Portfolio'
+    Properties:
+      Description: Example SC portfolio for MLOps workshop
+      DisplayName: ML Demo Portfolio
+      ProviderName: ML DEMO
+
+  SCMLProjectProduct:
+    Type: 'AWS::ServiceCatalog::CloudFormationProduct'
+    Properties:
+      Description: >-
+        ML project environment (demo). This template provisions a basic example project environment including
+        sample data for our credit scoring workshop. Provisioned data is derived from the "German Credit"
+        dataset available online at: https://archive.ics.uci.edu/ml/datasets/statlog+(german+credit+data)
+      Distributor: ML DEMO
+      Name: ML Project (DEMO - Credit Example)
+      Owner: !Sub 'Demo stack: ${AWS::StackName}'
+      ProvisioningArtifactParameters: 
+        - Description: Initial version
+          Info:
+            LoadTemplateFromURL: $MLProjectCFURL
+          Name: v1
+      # ReplaceProvisioningArtifacts: Boolean
+      SupportDescription: 'Sample stack - N/A'
+      # SupportEmail: String
+      # SupportUrl: String
+      # Tags: 
+      #   - Tag
+
+  SCMLPortfolioProductAssoc:
+    Type: 'AWS::ServiceCatalog::PortfolioProductAssociation'
+    Properties:
+      PortfolioId: !Ref SCMLPortfolio
+      ProductId: !Ref SCMLProjectProduct
+
+  SCMLPortfolioEEUserAssoc:
+    Type: 'AWS::ServiceCatalog::PortfolioPrincipalAssociation'
+    Properties:
+      PortfolioId: !Ref SCMLPortfolio
+      # TODO: Replace with EE teamrole/etc
+      PrincipalARN: !Sub 'arn:aws:iam::${AWS::AccountId}:${SCPrincipal}'
+      PrincipalType: IAM
 
 
 Outputs:

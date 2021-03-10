@@ -35,18 +35,17 @@ build: ##=> Build SAM template & assets to CloudFormation on S3
 		sam package \
 			--s3-bucket $${DEPLOYMENT_BUCKET_NAME} \
 			--s3-prefix $${DEPLOYMENT_BUCKET_PREFIX}sam \
-			--output-template-file environment.tmp.yaml && \
+			--output-template-file environment-presub.tmp.yaml && \
+		export MLProjectCFURL=https://$${DEPLOYMENT_BUCKET_NAME}.s3.`aws configure get region`.amazonaws.com/$${DEPLOYMENT_BUCKET_PREFIX}project.cf.yaml && \
+		envsubst '$$MLProjectCFURL' <environment-presub.tmp.yaml >environment.tmp.yaml && \
 		aws s3 cp environment.tmp.yaml \
 			s3://$${DEPLOYMENT_BUCKET_NAME}/$${DEPLOYMENT_BUCKET_PREFIX}environment.cf.yaml
+	# (We use envsubst to replace the Project CF template URL in the environment template with the built &
+	# staged version)
 
-create: ##=> Create services stack (only)
+create: ##=> Create environment stack (only)
 	$(info [*] Deploying...)
-	# aws cloudformation create-stack \
-	# 		--template-body file://project.tmp.yaml \
-	# 		--stack-name $(STACK_NAME) \
-	# 		--capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
-	# 		--disable-rollback \
-	# 		--parameters ParameterKey=StudioUsers,ParameterValue=tmpuser
+	# This option disables rollback for debugging, versus SAM `deploy`
 	aws cloudformation create-stack \
 			--template-body file://environment.tmp.yaml \
 			--stack-name $(STACK_NAME) \
@@ -55,14 +54,29 @@ create: ##=> Create services stack (only)
 			# (disable rollback for debugging)
 			# TODO: Support --parameters through MAKE?
 
-deploy: ##=> Deploy services (flexible create or update)
+create.project: ##=> Create project stack (only)
 	$(info [*] Deploying...)
-	# sam deploy \
-	# 		--template-file project.tmp.yaml \
-	# 		--stack-name $(STACK_NAME) \
-	# 		--capabilities CAPABILITY_IAM
+	# This option disables rollback for debugging, versus SAM `deploy`
+	aws cloudformation create-stack \
+			--template-body file://project.tmp.yaml \
+			--stack-name $(STACK_NAME) \
+			--capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
+			--disable-rollback
+			# --parameters ParameterKey=StudioUsers,ParameterValue=tmpuser
+			# TODO: Support --parameters through MAKE?
+
+deploy: ##=> Deploy environment (flexible create or update)
+	$(info [*] Deploying...)
 	sam deploy \
 			--template-file environment.tmp.yaml \
+			--stack-name $(STACK_NAME) \
+			--capabilities CAPABILITY_IAM
+			# TODO: Support --parameter-overrides through MAKE?
+
+deploy.project: ##=> Deploy project stack (flexible create or update)
+	$(info [*] Deploying...)
+	sam deploy \
+			--template-file project.tmp.yaml \
 			--stack-name $(STACK_NAME) \
 			--capabilities CAPABILITY_IAM
 			# TODO: Support --parameter-overrides through MAKE?

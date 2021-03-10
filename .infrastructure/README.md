@@ -40,27 +40,37 @@ You'll also need:
 - Sufficient access (log in with `aws configure`) to be able to deploy the stacks in your target region
 - An *[Amazon S3](https://s3.console.aws.amazon.com/s3/home) Bucket* to use for staging deployment assets (Lambda bundles, etc)
 
-**Step 1: Build the Lambda bundles and final CloudFormation template with AWS SAM**
+**Step 1: Build the Lambda bundles and final CloudFormation templates with AWS SAM**
 
 ```sh
 make build DEPLOYMENT_BUCKET_NAME=example-bucket
 ```
 
-**Step 2: Deploy (create or update) the stack**
+**Step 2: Deploy (create or update) the environment stack**
 
 ```sh
-make deploy STACK_NAME=sm101stack
+make deploy STACK_NAME=mlopsintro
 ```
 
-***Alternative: Build and create the stack in one go**
+***Alternative: Build the stacks and create the environment in one go**
 
 (This option only *creates* stacks, and disables rollback, for easier debugging)
 
 ```sh
-make all DEPLOYMENT_BUCKET_NAME=example-bucket STACK_NAME=sm101stack
+make all DEPLOYMENT_BUCKET_NAME=example-bucket STACK_NAME=mlopsintro
 ```
 
-...There's also a `make delete` option for cleaning up - but it's basically just a call to delete the CF stack.
+**Optional: Deploy the 'ML project' stack via CloudFormation/SAM**
+
+Typically you'd provision the "project" stack through Service Catalog once the "environment" stack is created, but there are also `create` & `deploy` commands for the project stack too if you'd like to automate the provisioning from CLI:
+
+```sh
+make create.project STACK_NAME=creditdemo
+```
+
+**Cleaning up**
+
+...There's also a `make delete` option for cleaning up - but it's basically just a call to delete the `STACK_NAME` stack.
 
 ## Preparing Templates for Multi-Region Deployment
 

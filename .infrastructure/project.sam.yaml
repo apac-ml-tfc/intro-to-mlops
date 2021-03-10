@@ -29,6 +29,9 @@ Resources:
   RawBucket:
     Type: 'AWS::S3::Bucket'
     Properties:
+      # Since this stack gets provisioned by Service Catalog, the stack ID is random so the bucket naming is
+      # very unclear unless we explicitly set it:
+      BucketName: !Sub '${ProjectId}-mlrawdata-${AWS::AccountId}-${AWS::Region}'
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         IgnorePublicAcls: true
@@ -47,6 +50,7 @@ Resources:
   SandboxBucket:
     Type: 'AWS::S3::Bucket'
     Properties:
+      BucketName: !Sub '${ProjectId}-mlsandbox-${AWS::AccountId}-${AWS::Region}'
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         IgnorePublicAcls: true
@@ -68,7 +72,7 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Sid: RawBucketRead
+          - Sid: S3RawBucketRead
             Effect: Allow
             Action:
               - 's3:Get*'
@@ -78,13 +82,23 @@ Resources:
             Resource:
               - !GetAtt RawBucket.Arn
               - !Sub '${RawBucket.Arn}/*'
-          - Sid: SandboxBucketReadWrite
+          - Sid: S3SandboxBucketReadWrite
             Effect: Allow
             Action:
               - 's3:*'
             Resource:
               - !GetAtt SandboxBucket.Arn
               - !Sub '${SandboxBucket.Arn}/*'
+          - Sid: SSMParamRead
+            # Allow notebook to read SSM params to locate buckets/etc
+            Effect: Allow
+            Action:
+              - 'ssm:GetParameter'
+              - 'ssm:GetParameterHistory'
+              - 'ssm:GetParameters'
+              - 'ssm:GetParametersByPath'
+            Resource:
+              - !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${ProjectId}-Project/*'
 
   SetupLambdaPolicy:
     Type: 'AWS::IAM::ManagedPolicy'

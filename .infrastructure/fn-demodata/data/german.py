@@ -6,6 +6,7 @@ See https://archive.ics.uci.edu/ml/datasets/statlog+(german+credit+data)
 # Python Built-Ins:
 import logging
 import os
+import time
 import traceback
 
 # External Dependencies:
@@ -195,6 +196,16 @@ def load(s3_bucket_name: str, s3_prefix: str, schema=GERMAN_SCHEMA):
         colmap = colspec.get("map")
         if colmap:
             df[colname] = df[colname].apply(lambda v: colmap.get(v, v))
+
+    # Add dummy record ID and timestamp fields for SageMaker Feature Store:
+    df.index = df.index.set_names(["txn_id"])
+    df.reset_index(inplace=True)
+    df["txn_timestamp"] = round(time.time())
+
+    # Move the transaction timestamp (created at end) to just after the ID:
+    colnames = df.columns.tolist()
+    colnames.insert(1, colnames.pop())
+    df = df[colnames]
 
     out_uri = f"s3://{s3_bucket_name}/{s3_prefix}german.csv"
     logger.info(f"Writing CSV to {out_uri}")

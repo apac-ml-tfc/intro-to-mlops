@@ -4,14 +4,21 @@ import altair as alt
 import numpy as np
 import pandas as pd
 
-colnames = df.columns.to_list()
-nacounts = [df[c].isna().sum() for c in colnames]
 df_len = len(df)
+colnames = df.columns.to_list()
+# Something odd going on with list comprehensions throwing a NameError on `df` at the time of writing, so
+# we'll just use a for loop:
+nacounts = []
+napcts = []
+for c in colnames:
+    nacount = df[c].isna().sum()
+    nacounts.append(nacount)
+    napcts.append(nacount / df_len)
 
 chart_df = pd.DataFrame({
     "column": colnames,
     "nacount": nacounts,
-    "napct": [n / len(df) for n in nacounts],
+    "napct": napcts,
 })
 
 bars = alt.Chart(

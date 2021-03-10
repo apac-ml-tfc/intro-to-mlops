@@ -6,6 +6,7 @@ See https://archive.ics.uci.edu/ml/datasets/statlog+(german+credit+data)
 # Python Built-Ins:
 import logging
 import os
+import traceback
 
 # External Dependencies:
 import boto3

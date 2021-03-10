@@ -21,13 +21,13 @@ GERMAN_SCHEMA = [
         "name": "checking_acct_status",
         # A13 also means salary assignments for at least 1 year?
         "map": {
-            "A11": "... <0DM",
-            "A12": "0 <= ... < 200DM",
-            "A13": "... >= 200DM",
+            "A11": "Band 1 <0DM",
+            "A12": "Band 2 0-200DM",
+            "A13": "Band 3 >=200DM",
             # Don't use 'N/A' or other strings Pandas interprets as null, if you don't want confusing
             # differences between how Pandas and PySpark processes interpret the data!
             # https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.read_csv.html#pandas.read_csv
-            "A14": "no account",
+            "A14": "No Account",
         },
     },
     {
@@ -36,21 +36,21 @@ GERMAN_SCHEMA = [
     {
         "name": "credit_history",
         "map": {
-            "A30": "A30 None taken / all paid duly",
-            "A31": "A31 All credits at this bank paid back duly",
-            "A32": "A32 Existing credits paid back duly til now",
-            "A33": "A33 Delay in paying off in the past",
-            "A34": "A34 Critical account",  # critical account/ other credits existing (not at this bank)
+            "A30": 0, #"A30 None taken or all paid duly",
+            "A31": 1, #"A31 All credits at this bank paid back duly",
+            "A32": 2, #"A32 Existing credits paid back duly til now",
+            "A33": 3, #"A33 Delay in paying off in the past",
+            "A34": 4, #"A34 Critical account",  # critical account/ other credits existing (not at this bank)
         },
     },
     {
         "name": "purpose",
         "map": {
-            "A40": "car (new)",
-            "A41": "car (used)",
-            "A42": "furniture/equipment",
-            "A43": "radio/television",
-            "A44": "domestic appliances",
+            "A40": "car_new",
+            "A41": "car_used",
+            "A42": "furniture_equipment",
+            "A43": "radio_television",
+            "A44": "domestic_appliances",
             "A45": "repairs",
             "A46": "education",
             "A47": "vacation",  # Not actually present in data
@@ -65,21 +65,21 @@ GERMAN_SCHEMA = [
     {
         "name": "savings_status",
         "map": {
-            "A61": "... < 100DM",
-            "A62": "100 <= ... < 500DM",
-            "A63": "500 <= ... < 1000DM",
-            "A64": "... >= 1000DM",
+            "A61": "Band 1 <100DM",
+            "A62": "Band 2 100-500DM",
+            "A63": "Band 3 500-1000DM",
+            "A64": "Band 4 >=1000DM",
             "A65": "Unknown or N/A",
         },
     },
     {
-        "name": "present_employment_since",
+        "name": "present_employment_yrs_lt",
         "map": {
-            "A71": "unemployed",
-            "A72": "... < 1 year",
-            "A73": "1 <= ... < 4 years",
-            "A74": "4 <= ... < 7 years",
-            "A75": "... >= 7 years",
+            "A71": 0,  # Unemployed
+            "A72": 1,  # Under a year
+            "A73": 4,  # 1-4yrs
+            "A74": 7,  # 4-7yrs
+            "A75": 10,  # >=7 years, value chosen to make it a passably regular ordinal encoding
         },
     },
     {
@@ -99,7 +99,7 @@ GERMAN_SCHEMA = [
         "name": "other_parties",
         "map": {
             "A101": "none",
-            "A102": "co-applicant",
+            "A102": "coapplicant",
             "A103": "guarantor",
         },
     },
@@ -131,19 +131,19 @@ GERMAN_SCHEMA = [
         "map": {
             "A151": "rent",
             "A152": "own",
-            "A153": "for free",
+            "A153": "for_free",
         },
     },
     {
         "name": "n_existing_credits_this_bank",
     },
     {
-        "name": "job",
+        "name": "job_type",
         "map": {
-            "A171": "unemployed/unskilled - non-resident",
-            "A172": "unskilled - resident",
-            "A173": "skilled/official",
-            "A174": "management/self-employed/highly-qualified",
+            "A171": 0, # "unemployed/unskilled - non-resident",
+            "A172": 1, # "unskilled - resident",
+            "A173": 2, # "skilled/official",
+            "A174": 3, # "management/self-employed/highly-qualified",
         },
     },
     {

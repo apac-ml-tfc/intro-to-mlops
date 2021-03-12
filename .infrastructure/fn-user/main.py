@@ -67,7 +67,33 @@ def handle_create(event, context):
 def handle_delete(event, context):
     logging.info("**Received delete event")
     user_profile_name = event["PhysicalResourceId"]
-    domain_id = event["ResourceProperties"]["DomainId"]
+    domain_id = event["ResourceProperties"].get("DomainId")
+
+    if domain_id is None:
+        try:
+            domains_resp = smclient.list_domains()
+            if "NextToken" in domains_resp:
+                logging.warning(
+                    f"Ignoring NextToken on sagemaker:ListDomains response - pagination not implemented"
+                )
+            domain_ids = [d["DomainId"] for d in domains_resp["Domains"]]
+        except Exception as e:
+            raise ValueError(
+                "DomainId not explicitly provided and could not query sagemaker:ListDomains"
+            ) from e
+        if not (len(domain_ids) > 0):
+            # If the domain has been deleted, the user must necessarily have been deleted too!
+            logging.info(f"Domain already deleted - skipping user deletion")
+            cfnresponse.send(
+                event,
+                context,
+                cfnresponse.SUCCESS,
+                {},
+                physicalResourceId=event["PhysicalResourceId"],
+            )
+            return
+        domain_id = domain_ids[0]
+
     try:
         smclient.describe_user_profile(DomainId=domain_id, UserProfileName=user_profile_name)
     except smclient.exceptions.ResourceNotFound as exception:
@@ -92,7 +118,25 @@ def handle_delete(event, context):
 def handle_update(event, context):
     logging.info("**Received update event")
     user_profile_name = event["PhysicalResourceId"]
-    domain_id = event["ResourceProperties"]["DomainId"]
+    domain_id = event["ResourceProperties"].get("DomainId")
+
+    if domain_id is None:
+        try:
+            domains_resp = smclient.list_domains()
+            if "NextToken" in domains_resp:
+                logging.warning(
+                    f"Ignoring NextToken on sagemaker:ListDomains response - pagination not implemented"
+                )
+            domain_ids = [d["DomainId"] for d in domains_resp["Domains"]]
+        except Exception as e:
+            raise ValueError(
+                "DomainId not explicitly provided and could not query sagemaker:ListDomains"
+            ) from e
+        if not (len(domain_ids) > 0):
+            # If the domain has been deleted, the user must necessarily have been deleted too!
+            raise ValueError(f"No SageMaker Studio domain available in this region!")
+        domain_id = domain_ids[0]
+
     user_settings = event["ResourceProperties"]["UserSettings"]
     update_user_profile(domain_id, user_profile_name, user_settings)
     cfnresponse.send(
@@ -105,7 +149,26 @@ def handle_update(event, context):
 
 
 def create_user_profile(config):
-    domain_id = config["DomainId"]
+    domain_id = config.get("DomainId")
+
+    if domain_id is None:
+        try:
+            domains_resp = smclient.list_domains()
+            if "NextToken" in domains_resp:
+                logging.warning(
+                    f"Ignoring NextToken on sagemaker:ListDomains response - pagination not implemented"
+                )
+            domain_ids = [d["DomainId"] for d in domains_resp["Domains"]]
+        except Exception as e:
+            raise ValueError(
+                "DomainId not explicitly provided and could not query sagemaker:ListDomains"
+            ) from e
+        if not (len(domain_ids) > 0):
+            # If the domain has been deleted, the user must necessarily have been deleted too!
+            logging.info(f"Domain already deleted - skipping user deletion")
+            raise ValueError(f"No SageMaker Studio domain available in this region!")
+        domain_id = domain_ids[0]
+
     user_profile_name = config["UserProfileName"]
     user_settings = config["UserSettings"]
 

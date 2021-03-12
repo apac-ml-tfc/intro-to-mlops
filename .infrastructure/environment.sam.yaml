@@ -3,19 +3,23 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 
 Description: >-
-  Workshop event template - Provision SageMaker Notebook (Instance + Studio environment alternatives) and
-  related IAM configuration. Clone the workshop codebase into the notebook to get started.
+  Simplified multi-user workshop event template. Provision SMStudio domain; a service catalog product for
+  provisioning "ML Projects" including SMStudio users; and some VPC/Lambda apparatus to support cloning code
+  into users' accounts in downstream stacks.
 
 Parameters:
-  NotebookName:
-    Type: String
-    Default: MLOpsNotebook
-    Description: Enter the name of the SageMaker notebook instance. Default is SM101Notebook.
-
-  DefaultCodeRepo:
+  CodeRepo:
     Type: String
     Default: https://github.com/apac-ml-tfc/sagemaker-workshop-101
     Description: URL of the git code repository to clone in to the SageMaker notebook.
+
+  SCPrincipal:
+    Type: String
+    Description: >-
+      IAM principal you'll use to provision the "ML Project" product from service catalog (i.e. the role or
+      user you use in the AWS console). ARN suffix
+    Default: 'role/Admin'
+    # Default: 'role/TeamRole'
 
   VpcId:
     Type: String
@@ -27,13 +31,6 @@ Parameters:
     Description: >-
       Comma-separated list of subnet IDs to use (e.g. subnet-xxxxxx), or blank to use all default subnets.
     Default: ''
-
-  SCPrincipal:
-    Type: String
-    Description: >-
-      IAM principal you'll use to provision the "ML Project" product from service catalog (i.e. the role or
-      user you use in the AWS console). ARN suffix
-    Default: 'role/Admin'
 Resources:
 
 ########  THE BASICS: SageMaker perms & notebook instance  ########
@@ -53,73 +50,21 @@ Resources:
       Path: '/'
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/AmazonSageMakerFullAccess'
-        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
-        - 'arn:aws:iam::aws:policy/IAMFullAccess'
-
-  # If running on classic notebook instances, make sure widgets library is installed:
-  NotebookConfig:
-    Type: 'AWS::SageMaker::NotebookInstanceLifecycleConfig'
-    Properties:
-      NotebookInstanceLifecycleConfigName: !Sub '${AWS::StackName}-LifecycleConfig'
-      OnStart:
-        - Content:
-            Fn::Base64: !Sub |
-              #!/bin/bash
-              set -e
-
-              # Install extension for ipywidgets interactivity:
-              sudo -u ec2-user -i <<'EOF'
-              source /home/ec2-user/anaconda3/bin/activate JupyterSystemEnv
-              jupyter labextension install @jupyter-widgets/jupyterlab-manager
-              source /home/ec2-user/anaconda3/bin/deactivate
-              EOF
-
-  # Classic notebook instance in case you want to run the workshop there:
-  NotebookInstance:
-    Type: 'AWS::SageMaker::NotebookInstance'
-    Properties:
-      InstanceType: ml.t2.medium
-      LifecycleConfigName: !GetAtt NotebookConfig.NotebookInstanceLifecycleConfigName
-      NotebookInstanceName: !Ref NotebookName
-      RoleArn: !GetAtt SageMakerExecutionRole.Arn
-      VolumeSizeInGB: 20
-      DefaultCodeRepository: !Ref DefaultCodeRepo
+        # - 'arn:aws:iam::aws:policy/IAMFullAccess'
 
 
 ########  SAGEMAKER STUDIO SETUP & USER CREATION  ########
 
-  # Permissions for the Lambda functions implementing our custom CFN resources:
-  LambdaExecutionRole:
-    Type: 'AWS::IAM::Role'
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action:
-              - 'sts:AssumeRole'
-      Path: /
-
-  LambdaExecutionPolicy:
+  # Permissions for custom resource Lambda:
+  EnvSetupLambdaPolicy:
     # TODO: Scope setup Lambda permissions down further
     # Would be good to scope more perms down to the current region & account ID for e.g.
     Type: 'AWS::IAM::ManagedPolicy'
     Properties:
-      Path: /
+      Path: '/DataSciSetup/'
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Sid: CloudWatchLogsPermissions
-            Effect: Allow
-            Action:
-              - logs:CreateLogGroup
-              - logs:CreateLogStream
-              - logs:PutLogEvents
-            Resource: !Sub 'arn:${AWS::Partition}:logs:*:*:*'
-            # Could we scope this to specific region/accountID?
           - Sid: GetVPCsAndSubnets
             Effect: Allow
             Action:
@@ -173,10 +118,24 @@ Resources:
             Action:
               - iam:PassRole
             Resource: !GetAtt SageMakerExecutionRole.Arn
-      Roles:
-        - !Ref LambdaExecutionRole
-        # TODO: Couldn't we make LambdaExecutionRole depend on policy instead?
-        # This might let us remove a few DependsOns later
+
+  # Access role for CFN custom resource lambdas (user setup)
+  EnvSetupLambdaRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - !Ref EnvSetupLambdaPolicy
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+      Path: '/DataSciSetup/'
 
   # Shared layer loading the cfn-response module (doesn't seem to auto-import with SAM Lambdas)
   LambdaCommonLayer:
@@ -193,45 +152,30 @@ Resources:
   # Custom resource implementation for creating SMStudio domains
   StudioDomainFunction:
     Type: 'AWS::Serverless::Function'
-    DependsOn: LambdaExecutionPolicy
     Properties:
       Description: CloudFormation custom resource implementation for SageMaker Studio domain
       CodeUri: ./fn-domain/
       Handler: main.lambda_handler
       MemorySize: 128
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt EnvSetupLambdaRole.Arn
       Runtime: python3.8
       Timeout: 900
       Layers:
         - !Ref LambdaCommonLayer
 
+  # MOVED to downstream stack
   # Custom resource implementation for creating SMStudio users
-  UserProfileFunction:
-    Type: 'AWS::Serverless::Function'
-    DependsOn: LambdaExecutionPolicy
-    Properties:
-      Description: CloudFormation custom resource implementation for SageMaker Studio users
-      CodeUri: ./fn-user/
-      Handler: main.lambda_handler
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Runtime: python3.8
-      Timeout: 900
-      Layers:
-        - !Ref LambdaCommonLayer
-
-  # Custom resource implementation for creating Studio users' default apps for faster start-up
-  UserDefaultAppFunction:
-    Type: 'AWS::Serverless::Function'
-    DependsOn: LambdaExecutionPolicy
-    Properties:
-      Description: CloudFormation custom resource implementation for SageMaker Studio users' default apps
-      CodeUri: ./fn-defaultapp/
-      Handler: main.lambda_handler
-      Role: !GetAtt LambdaExecutionRole.Arn
-      Runtime: python3.8
-      Timeout: 900
-      Layers:
-        - !Ref LambdaCommonLayer
+  # UserProfileFunction:
+  #   Type: 'AWS::Serverless::Function'
+  #   Properties:
+  #     Description: CloudFormation custom resource implementation for SageMaker Studio users
+  #     CodeUri: ./fn-user/
+  #     Handler: main.lambda_handler
+  #     Role: !GetAtt EnvSetupLambdaRole.Arn
+  #     Runtime: python3.8
+  #     Timeout: 900
+  #     Layers:
+  #       - !Ref LambdaCommonLayer
 
   StudioDomain:
     Type: 'Custom::StudioDomain'
@@ -243,16 +187,17 @@ Resources:
       DefaultUserSettings:
         ExecutionRole: !GetAtt SageMakerExecutionRole.Arn
 
-  UserProfile:
-    Type: 'Custom::UserProfile'
-    DependsOn:
-      - StudioDomain
-    Properties:
-      ServiceToken: !GetAtt UserProfileFunction.Arn
-      DomainId: !GetAtt StudioDomain.DomainId
-      UserProfileName: 'workshop-user' #!Ref UserProfileName
-      UserSettings:
-        ExecutionRole: !GetAtt SageMakerExecutionRole.Arn
+  # MOVED to downstream stack
+  # UserProfile:
+  #   Type: 'Custom::UserProfile'
+  #   DependsOn:
+  #     - StudioDomain
+  #   Properties:
+  #     ServiceToken: !GetAtt UserProfileFunction.Arn
+  #     DomainId: !GetAtt StudioDomain.DomainId
+  #     UserProfileName: 'workshop-user' #!Ref UserProfileName
+  #     UserSettings:
+  #       ExecutionRole: !GetAtt SageMakerExecutionRole.Arn
 
 ########  PRE-CLONING GIT REPO TO SAGEMAKER STUDIO ENVIRONMENT  ########
 ## This is easy on a notebook instance (see above) but requires a few more steps for Studio
@@ -330,7 +275,6 @@ Resources:
   UserSetupFunction:
     Type: 'AWS::Serverless::Function'
     DependsOn:
-      - LambdaExecutionPolicy
       - StudioEFSAccessPoint
       - LambdaNatGatewayRoute
       - LambdaRouteTableAssociation
@@ -339,7 +283,7 @@ Resources:
       Description: CloudFormation custom resource implementation for SageMaker Studio users
       CodeUri: ./fn-usersetup/
       Handler: main.lambda_handler
-      Role: !GetAtt LambdaExecutionRole.Arn
+      Role: !GetAtt EnvSetupLambdaRole.Arn
       Runtime: python3.8
       Timeout: 300
       Layers:
@@ -358,27 +302,18 @@ Resources:
         SubnetIds:
           - !Ref LambdaSubnet
 
-  # Actual resource instantiation: Clone the DefaultCodeRepo into the user's SMStudio EFS home folder:
-  UserSetup:
-    Type: 'Custom::UserSetup'
-    DependsOn:
-      - UserProfile
-    Properties:
-      ServiceToken: !GetAtt UserSetupFunction.Arn
-      DomainId: !GetAtt StudioDomain.DomainId
-      UserProfileName: !GetAtt UserProfile.UserProfileName
-      HomeEfsFileSystemUid: !GetAtt UserProfile.HomeEfsFileSystemUid
-      GitRepository: !Ref DefaultCodeRepo
-
-  # Once the user is set up, create their default JupyterServer app to speed up start time:
-  UserDefaultApp:
-    Type: 'Custom::UserDefaultApp'
-    DependsOn:
-      - UserSetup
-    Properties:
-      ServiceToken: !GetAtt UserDefaultAppFunction.Arn
-      DomainId: !GetAtt StudioDomain.DomainId
-      UserProfileName: 'workshop-user' #!Ref UserProfileName
+  # TODO: Expose the Lambda ARN to the downstream stack so we can call the shared Lambda from there.
+  # # Actual resource instantiation: Clone the CodeRepo into the user's SMStudio EFS home folder:
+  # UserSetup:
+  #   Type: 'Custom::UserSetup'
+  #   DependsOn:
+  #     - UserProfile
+  #   Properties:
+  #     ServiceToken: !GetAtt UserSetupFunction.Arn
+  #     DomainId: !GetAtt StudioDomain.DomainId
+  #     UserProfileName: !GetAtt UserProfile.UserProfileName
+  #     HomeEfsFileSystemUid: !GetAtt UserProfile.HomeEfsFileSystemUid
+  #     GitRepository: !Ref CodeRepo
 
 
 ########  SERVICE CATALOG: Provisioning for an ML Project Environment  ########
@@ -403,14 +338,10 @@ Resources:
       ProvisioningArtifactParameters: 
         - Description: Initial version
           Info:
+            # TO BE POPULATED BY BUILD SCRIPT:
             LoadTemplateFromURL: $MLProjectCFURL
           Name: v1
-      # ReplaceProvisioningArtifacts: Boolean
       SupportDescription: 'Sample stack - N/A'
-      # SupportEmail: String
-      # SupportUrl: String
-      # Tags: 
-      #   - Tag
 
   SCMLPortfolioProductAssoc:
     Type: 'AWS::ServiceCatalog::PortfolioProductAssociation'
@@ -422,7 +353,6 @@ Resources:
     Type: 'AWS::ServiceCatalog::PortfolioPrincipalAssociation'
     Properties:
       PortfolioId: !Ref SCMLPortfolio
-      # TODO: Replace with EE teamrole/etc
       PrincipalARN: !Sub 'arn:aws:iam::${AWS::AccountId}:${SCPrincipal}'
       PrincipalType: IAM
 
@@ -431,12 +361,9 @@ Outputs:
   DomainId:
     Description: SageMaker Studio Domain ID
     Value: !GetAtt StudioDomain.DomainId
-  UserProfileName:
-    Description: SageMaker Studio Username
-    Value: !GetAtt UserProfile.UserProfileName
-  HomeEfsFileSystemUid:
-    Description: SageMaker Studio EFS User ID
-    Value: !GetAtt UserProfile.HomeEfsFileSystemUid
   SubnetIds:
     Description: VPC Subnet IDs
     Value: !GetAtt StudioDomain.SubnetIds
+  UserSetupLambda:
+    Description: CFn Lambda resource with access to SMStudio EFS
+    Value: !GetAtt UserSetupFunction.Arn

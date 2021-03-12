@@ -1267,6 +1267,28 @@
           "name": "default"
         }
       ]
+    },
+    {
+      "node_id": "e4adff78-b977-4b75-b975-ef25e26f348f",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.cast_single_data_type_0.1",
+      "parameters": {
+        "column": "gender_is_male",
+        "original_data_type": "Boolean",
+        "data_type": "long"
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "006869ca-e5fe-4c4d-b290-c1fe8127513b",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
     }
   ]
 }

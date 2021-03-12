@@ -13,6 +13,8 @@ import traceback
 import boto3
 import pandas as pd
 import requests
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 import s3fs
 
 logger = logging.getLogger("german")
@@ -179,7 +181,19 @@ def load(s3_bucket_name: str, s3_prefix: str, schema=GERMAN_SCHEMA):
     print(f"pandas version: {pd.__version__}")
     print(f"s3fs version: {s3fs.__version__}")
     logger.info("Fetching data...")
-    res = requests.get(
+
+    # Retry this request with backoff, in case spinning up a large session runs in to throttling issues:
+    retry_strategy = Retry(
+        backoff_factor=2,  # Time = {backoff factor} * (2 ** ({number of total retries} - 1))
+        method_whitelist=["GET", "HEAD", "OPTIONS"],
+        status_forcelist=[429, 500, 502, 503, 504],
+        total=3,
+    )
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    reqsess = requests.Session()
+    reqsess.mount("https://", adapter)
+    reqsess.mount("http://", adapter)
+    res = reqsess.get(
         "http://archive.ics.uci.edu/ml/machine-learning-databases/statlog/german/german.data",
         stream=True,
     )

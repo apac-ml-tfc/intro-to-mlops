@@ -73,6 +73,13 @@ def mock_featurestore_dataset_split(
             columns=[dataset_label_col] + drop_cols,
         )
 
+        # Safety mechanism: Drop any string columns which will mess up the algorithm training job
+        # (for demo, in case the user had to quit data prep early or made an error)
+        str_cols = [col for col in part_df if pd.api.types.is_string_dtype(part_df[col].dtype)]
+        if len(str_cols):
+            print(f"WARNING: Text columns not supported by XGBoost - dropping {str_cols}")
+            part_df = part_df.drop(columns=str_cols)
+
         # Fix for boolean fields `,true,` from DW getting converted to Python `,True,`
         for col in part_df:
             # pd.api.types.is_bool_dtype() doesn't seem to work in this situation for some reason - cols get

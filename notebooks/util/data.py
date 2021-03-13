@@ -2,6 +2,7 @@
 
 # Python Built-Ins:
 import re
+from typing import List
 
 # External Dependencies:
 import boto3
@@ -39,6 +40,7 @@ def mock_featurestore_dataset_split(
     out_s3uri: str,
     dataset_label_col: str="dataset",
     datasets_with_headers: str=r"train.*",
+    drop_cols: List[str]=[],
 ):
     """Split a Data Wrangler output dataset by dataset segment (train/val/test)
 
@@ -67,7 +69,9 @@ def mock_featurestore_dataset_split(
             re.match(datasets_with_headers, dsname) if isinstance(datasets_with_headers, str)
             else datasets_with_headersr
         )
-        part_df = df[df[dataset_label_col] == dsname].drop(columns=[dataset_label_col])
+        part_df = df[df[dataset_label_col] == dsname].drop(
+            columns=[dataset_label_col] + drop_cols,
+        )
 
         # Fix for boolean fields `,true,` from DW getting converted to Python `,True,`
         for col in part_df:

@@ -9,11 +9,18 @@ Description: >-
 Parameters:
   StudioUserName:
     Description: >-
-      A username
+      A username (3-12 lowercase letters) for SageMaker Studio which will also be used in S3 bucket names,
+      etc.
     Type: String
-    AllowedPattern: "^[a-z]{2,12}"
+    AllowedPattern: "^[a-z]{3,12}"
     # AllowedPattern: "^[a-zA-Z0-9](-*[a-zA-Z0-9]){0,15}$"
     ConstraintDescription: The ProjectId can be up to 12 characters, lowercase letters (a-z) only.
+
+  # We don't want participants to see any more parameters than strictly necessary
+  # CodeRepo:
+  #   Type: String
+  #   Default: https://github.com/apac-ml-tfc/intro-to-mlops
+  #   Description: URL of the git code repository to clone in to the SageMaker notebook.
 
   # ProjectId needs to be unique as it's used to prefix resources... So we'll simplify deployment by having
   # users just select one unique thing (StudioUserName) and hard-coding ProjectId to:

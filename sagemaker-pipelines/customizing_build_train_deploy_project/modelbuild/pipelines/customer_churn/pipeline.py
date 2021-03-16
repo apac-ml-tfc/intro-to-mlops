@@ -123,7 +123,7 @@ def get_pipeline(
     )
     input_data = ParameterString(
         name="InputDataUrl",
-        default_value=f"s3://sm-pipelines-demo-data-123456789/churn.txt",  # Change this to point to the s3 location of your raw input data.
+        default_value=f"s3://sagemaker-ap-southeast-1-349934754982/sagemaker/DEMO-xgboost-churn/data/",  # Change this to point to the s3 location of your raw input data.
     )
 
     # Processing step for feature engineering
@@ -138,6 +138,9 @@ def get_pipeline(
     step_process = ProcessingStep(
         name="CustomerChurnProcess",  # choose any name
         processor=sklearn_processor,
+        inputs=[
+          ProcessingInput(source=input_data, destination="/opt/ml/processing/input"),  
+        ],
         outputs=[
             ProcessingOutput(output_name="train", source="/opt/ml/processing/train"),
             ProcessingOutput(

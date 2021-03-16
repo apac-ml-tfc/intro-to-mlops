@@ -21,6 +21,7 @@ import cfnresponse
 from git import Repo
 
 smclient = boto3.client("sagemaker")
+scclient = boto3.client("servicecatalog")
 
 def lambda_handler(event, context):
     try:
@@ -70,8 +71,9 @@ def handle_delete(event, context):
     logging.info("**Received delete event")
     user_profile_name = event["PhysicalResourceId"]
     domain_id = event["ResourceProperties"]["DomainId"]
+    enable_projects = event["ResourceProperties"].get("EnableProjects", False)
     logging.info("**Deleting user setup")
-    delete_user_setup(domain_id, user_profile_name)
+    delete_user_setup(domain_id, user_profile_name, enable_projects=enable_projects)
     cfnresponse.send(
         event,
         context,
@@ -103,12 +105,58 @@ def chown_recursive(path, uid=-1, gid=-1):
         for filename in filenames:
             os.chown(os.path.join(dirpath, filename), uid, gid)
 
+def enable_sm_projects_for_role(studio_role_arn):
+    """Enable SageMaker Projects for a SageMaker Execution Role
+
+    This function assumes you've already run Boto SageMaker enable_sagemaker_servicecatalog_portfolio() for
+    the account as a whole
+    """
+    portfolios_resp = scclient.list_accepted_portfolio_shares()
+
+    portfolio_ids = set()
+    for portfolio in portfolios_resp["PortfolioDetails"]:
+        if portfolio["ProviderName"] == "Amazon SageMaker":
+            portfolio_ids.add(portfolio["Id"])
+
+    logging.info(f"Adding {len(portfolio_ids)} SageMaker SC portfolios to role {studio_role_arn}")
+    for portfolio_id in portfolio_ids:
+        scclient.associate_principal_with_portfolio(
+            PortfolioId=portfolio_id,
+            PrincipalARN=studio_role_arn,
+            PrincipalType="IAM"
+        )
+
+
+def disable_sm_projects_for_role(studio_role_arn):
+    """Enable SageMaker Projects for a SageMaker Execution Role
+
+    This function assumes you've already run Boto SageMaker enable_sagemaker_servicecatalog_portfolio() for
+    the account as a whole
+    """
+    portfolios_resp = scclient.list_accepted_portfolio_shares()
+
+    portfolio_ids = set()
+    for portfolio in portfolios_resp["PortfolioDetails"]:
+        if portfolio["ProviderName"] == "Amazon SageMaker":
+            portfolio_ids.add(portfolio["Id"])
+
+    logging.info(f"Removing {len(portfolio_ids)} SageMaker SC portfolios from role {studio_role_arn}")
+    for portfolio_id in portfolio_ids:
+        response = scclient.disassociate_principal_from_portfolio(
+            PortfolioId=portfolio_id,
+            PrincipalARN=studio_role_arn,
+        )
+
+
 def create_user_setup(config):
     domain_id = config["DomainId"]
     user_profile_name = config["UserProfileName"]
     git_repo = config["GitRepository"]
     efs_uid = config["HomeEfsFileSystemUid"]
+    enable_projects = config.get("EnableProjects", False)
+
     print(f"Setting up user: {config}")
+    ## First, Git clone repository in:
     try:
         # The root of the EFS contains folders named for each user UID, but these may not be created before
         # the user has first logged in (could os.listdir("/mnt/efs") to check):
@@ -130,27 +178,42 @@ def create_user_setup(config):
         # Remember to set ownership/permissions for all the stuff we just created, to give the user write
         # access:
         chown_recursive(f"{home_folder}/{repo_folder_name}", uid=int(efs_uid))
-        print("All done")
+        print("Home folder content setup complete")
     except Exception as e:
         # Don't bring the entire CF stack down just because we couldn't copy a repo:
         print("IGNORING CONTENT SETUP ERROR")
         traceback.print_exc()
 
+    ## Finally enable SageMaker Projects/JumpStart if requested:
+    if enable_projects:
+        # We need to look up the role ARN for the user:
+        user_desc = smclient.describe_user_profile(DomainId=domain_id, UserProfileName=user_profile_name)
+        user_role_arn = user_desc["UserSettings"]["ExecutionRole"]
+        enable_sm_projects_for_role(user_role_arn)
+
     logging.info("**SageMaker Studio user '%s' set up successfully", user_profile_name)
     return { "UserProfileName": user_profile_name }
 
 
-def delete_user_setup(domain_id, user_profile_name):
+def delete_user_setup(domain_id, user_profile_name, enable_projects=False):
     logging.info(
         "**Deleting user setup is a no-op: user '%s' on domain '%s",
         user_profile_name,
         domain_id,
     )
+
+    ## Disable SageMaker Projects/JumpStart if requested:
+    if enable_projects:
+        # We need to look up the role ARN for the user:
+        user_desc = smclient.describe_user_profile(DomainId=domain_id, UserProfileName=user_profile_name)
+        user_role_arn = user_desc["UserSettings"]["ExecutionRole"]
+        disable_sm_projects_for_role(user_role_arn)
+
     return { "UserProfileName": user_profile_name }
 
 
 def update_user_setup(domain_id, user_profile_name, git_repo):
-    logging.info(
+    logging.warning(
         "**Updating user setup is a no-op: user '%s' on domain '%s",
         user_profile_name,
         domain_id,

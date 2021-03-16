@@ -67,10 +67,15 @@ if __name__ == "__main__":
     #    axis=1,
     #)
 
+
+    
+    # Drop several other columns
+    df = df.drop(["txn_id", "txn_timestamp", "dataset"], axis=1)
+    
     # Split the data
     train_data, validation_data, test_data = np.split(
-        model_data.sample(frac=1, random_state=1729),
-        [int(0.7 * len(model_data)), int(0.9 * len(model_data))],
+        df.sample(frac=1, random_state=1729),
+        [int(0.7 * len(df)), int(0.9 * len(df))],
     )
 
     pd.DataFrame(train_data).to_csv(

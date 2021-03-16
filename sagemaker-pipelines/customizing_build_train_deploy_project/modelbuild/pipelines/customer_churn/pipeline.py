@@ -123,7 +123,7 @@ def get_pipeline(
     )
     input_data = ParameterString(
         name="InputDataUrl",
-        default_value=f"s3://sm-pipelines-demo-data-123456789/churn.txt",  # Change this to point to the s3 location of your raw input data.
+        default_value=f"s3://creditmodel-ppaezuser-mlsandbox-657794478388-us-east-1/data-wrangler/credit-flow-2021-03-15-17-12-59/e61491fa-5fc6-4761-a5f2-4175fdc3ac72/default/",  # Change this to point to the s3 location of your raw input data.
     )
 
     # Processing step for feature engineering
@@ -138,6 +138,9 @@ def get_pipeline(
     step_process = ProcessingStep(
         name="CustomerChurnProcess",  # choose any name
         processor=sklearn_processor,
+        inputs=[
+          ProcessingInput(source=input_data, destination="/opt/ml/processing/input"),  
+        ],
         outputs=[
             ProcessingOutput(output_name="train", source="/opt/ml/processing/train"),
             ProcessingOutput(

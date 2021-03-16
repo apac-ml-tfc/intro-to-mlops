@@ -109,7 +109,7 @@ def handle_update(event, context):
     logging.info("**Received update event")
     # old_physical_id = event["PhysicalResourceId"]
     new_config=event["ResourceProperties"]
-    old_config=event["ResourceProperties"]
+    old_config=event["OldResourceProperties"]
 
     try:
         new_usernames = new_config["Users"]
@@ -195,7 +195,7 @@ def manage_attachments(usernames, policy_arn, attach=True):
                 logging.info(f"Skipping user {username} as role {user_role} already processed")
                 continue
 
-            user_role_name = user_role.partition("/")[2]
+            user_role_name = user_role.rpartition("/")[2]
             print(f"Extracted user_role_name {user_role_name} from {user_role}")
             if attach:
                 iamclient.attach_role_policy(PolicyArn=policy_arn, RoleName=user_role_name)

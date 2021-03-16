@@ -66,7 +66,7 @@ def handle_create(event, context):
     creation = smclient.create_domain(**create_domain_args)
     _, _, domain_id = creation["DomainArn"].rpartition("/")
     try:
-        result = post_domain_create(domain_id)
+        result = post_domain_create(domain_id, enable_projects=resource_config.get("EnableProjects", False))
         domain_desc = result["DomainDescription"]
         response = {
             "DomainId": domain_desc["DomainId"],
@@ -126,6 +126,12 @@ def handle_update(event, context):
     default_user_settings = event["ResourceProperties"]["DefaultUserSettings"]
     logging.info("**Updating studio domain")
     update_domain(domain_id, default_user_settings)
+    if (
+        event["ResourceProperties"].get("EnableProjects")
+        and not event["OldResourceProperties"].get("EnableProjects")
+    ):
+        smclient.enable_sagemaker_servicecatalog_portfolio()
+
     # TODO: Should we wait here for the domain to enter active state again?
     cfnresponse.send(
         event,
@@ -189,7 +195,7 @@ def preprocess_create_domain_args(config):
         "VpcId": vpc_id,
     }
 
-def post_domain_create(domain_id):
+def post_domain_create(domain_id, enable_projects=False):
     created = False
     time.sleep(0.2)
     while not created:
@@ -204,6 +210,9 @@ def post_domain_create(domain_id):
             )
         time.sleep(5)
     logging.info("**SageMaker domain created successfully: %s", domain_id)
+
+    if enable_projects:
+        smclient.enable_sagemaker_servicecatalog_portfolio()
 
     vpc_id = description["VpcId"]
     # Retrieve the VPC security groups set up by SageMaker for EFS communication:

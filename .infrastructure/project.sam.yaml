@@ -66,7 +66,7 @@ Resources:
             Principal:
               Service: sagemaker.amazonaws.com
             Action: sts:AssumeRole
-      Path: '/'
+      Path: '/DataScience/'
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/AmazonSageMakerFullAccess'
         - 'arn:aws:iam::aws:policy/IAMFullAccess'
@@ -113,14 +113,13 @@ Resources:
             Action:
               - sagemaker:DescribeDomain
               - sagemaker:ListDomains
-              # - sagemaker:CreateUserProfile
-              # - sagemaker:DeleteUserProfile
-              # - sagemaker:DescribeUserProfile
-              # - sagemaker:UpdateUserProfile
+              - sagemaker:CreateUserProfile
+              - sagemaker:DeleteUserProfile
+              - sagemaker:DescribeUserProfile
+              - sagemaker:UpdateUserProfile
             Resource:
-              # - !Sub 'arn:${AWS::Partition}:sagemaker:*:*:domain/*'
               - !Sub 'arn:${AWS::Partition}:sagemaker:${AWS::Region}:${AWS::AccountId}:domain/*'
-              # - !Sub 'arn:${AWS::Partition}:sagemaker:*:*:user-profile/*'
+              - !Sub 'arn:${AWS::Partition}:sagemaker:${AWS::Region}:${AWS::AccountId}:user-profile/*'
           # - Sid: CreateSageMakerServiceLinkedRole
           #   Effect: Allow
           #   Action:
@@ -168,38 +167,35 @@ Resources:
     Properties:
       ServiceToken: !GetAtt DescribeDomainFunction.Arn
 
-  # SUPERSEDED by AWS CF resource - unless we bring back the UserSetup Lambda in which case we'll need the
-  # EFS User ID that comes as an output from this custom resource?
-  # UserProfileFunction:
-  #   Type: 'AWS::Serverless::Function'
-  #   Properties:
-  #     Description: CloudFormation custom resource implementation for SageMaker Studio users
-  #     CodeUri: ./fn-user/
-  #     Handler: main.lambda_handler
-  #     Role: !GetAtt UserSetupLambdaRole.Arn
-  #     Runtime: python3.8
-  #     Timeout: 900
-  #     Layers:
-  #       - !Ref LambdaCommonLayer
-
-  # UserProfile:
-  #   Type: 'Custom::UserProfile'
-  #   DependsOn:
-  #     - StudioDomain
-  #   Properties:
-  #     ServiceToken: !GetAtt UserProfileFunction.Arn
-  #     # DomainId: !GetAtt StudioDomain.DomainId
-  #     UserProfileName: !Ref StudioUserName
-  #     UserSettings:
-  #       ExecutionRole: !GetAtt SageMakerExecutionRole.Arn
+  UserProfileFunction:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Description: CloudFormation custom resource implementation for SageMaker Studio users
+      CodeUri: ./fn-user/
+      Handler: main.lambda_handler
+      Role: !GetAtt UserSetupLambdaRole.Arn
+      Runtime: python3.8
+      Timeout: 900
+      Layers:
+        - !Ref LambdaCommonLayer
 
   UserProfile:
-    Type: 'AWS::SageMaker::UserProfile'
+    Type: 'Custom::UserProfile'
     Properties:
-      DomainId: !GetAtt ExistingDomainDetails.DomainId
+      ServiceToken: !GetAtt UserProfileFunction.Arn
+      # DomainId: GetAtt ExistingDomainDetails.DomainId
       UserProfileName: !Ref StudioUserName
       UserSettings:
         ExecutionRole: !GetAtt SageMakerExecutionRole.Arn
+
+  # We're using custom resource instead for now, because it can return the home EFS UID for use in git cloning.
+  # UserProfile:
+  #   Type: 'AWS::SageMaker::UserProfile'
+  #   Properties:
+  #     DomainId: !GetAtt ExistingDomainDetails.DomainId
+  #     UserProfileName: !Ref StudioUserName
+  #     UserSettings:
+  #       ExecutionRole: !GetAtt SageMakerExecutionRole.Arn
 
   UserDefaultApp:
     Type: 'AWS::SageMaker::App'
@@ -212,6 +208,21 @@ Resources:
       ResourceSpec:
         InstanceType: system
       UserProfileName: !Ref StudioUserName
+
+
+  # Actual resource instantiation: Clone the CodeRepo into the user's SMStudio EFS home folder
+  # (And also enable SageMaker Projects permissions)
+  UserSetup:
+    Type: 'Custom::UserSetup'
+    DependsOn:
+      - UserProfile
+    Properties:
+      ServiceToken: !Sub '{{resolve:ssm:/DataSciSetup/UserSetupLambdaArn:1}}'
+      DomainId: !GetAtt ExistingDomainDetails.DomainId
+      UserProfileName: !Ref StudioUserName
+      HomeEfsFileSystemUid: !GetAtt UserProfile.HomeEfsFileSystemUid
+      GitRepository: 'https://github.com/apac-ml-tfc/intro-to-mlops'
+      EnableProjects: True
 
 
 ######## PROJECT STACK ########

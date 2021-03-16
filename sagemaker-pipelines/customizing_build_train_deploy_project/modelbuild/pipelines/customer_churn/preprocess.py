@@ -10,7 +10,7 @@
 # distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF
 # ANY KIND, either express or implied. See the License for the specific
 # language governing permissions and limitations under the License.
-"""Feature engineers the customer churn dataset."""
+"""Feature engineer and train/test split the customer churn dataset."""
 
 import argparse
 import logging
@@ -34,8 +34,6 @@ if __name__ == "__main__":
 
     base_dir = "/opt/ml/processing"
 
-    logger.info("Downloading data from bucket: %s, key: %s", bucket, key)
-
     logger.info("Reading downloaded data from /opt/ml/processing/input/")
     
     if len(glob.glob(f"{base_dir}/input/*.csv"))>1:
@@ -43,33 +41,8 @@ if __name__ == "__main__":
     else:
         df=pd.read_csv(glob.glob(f"{base_dir}/input/*.csv")[0])
 
-    ## read in csv
-    #df = pd.read_csv(fn)
-
-    # drop the "Phone" feature column
-    #df = df.drop(["Phone"], axis=1)
-
-    # Change the data type of "Area Code"
-    #df["Area Code"] = df["Area Code"].astype(object)
-
-    # Drop several other columns
-    #df = df.drop(["Day Charge", "Eve Charge", "Night Charge", "Intl Charge"], axis=1)
-
-    # Convert categorical variables into dummy/indicator variables.
-    #model_data = pd.get_dummies(df)
-
-    # Create one binary classification target column
-    #model_data = pd.concat(
-    #    [
-    #        model_data["Churn?_True."],
-    #        model_data.drop(["Churn?_False.", "Churn?_True."], axis=1),
-    #    ],
-    #    axis=1,
-    #)
-
-
     
-    # Drop several other columns
+    # Drop several columns
     df = df.drop(["txn_id", "txn_timestamp", "dataset"], axis=1)
     
     # Split the data

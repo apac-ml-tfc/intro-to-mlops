@@ -75,7 +75,10 @@ def mock_featurestore_dataset_split(
 
         # Safety mechanism: Drop any string columns which will mess up the algorithm training job
         # (for demo, in case the user had to quit data prep early or made an error)
-        str_cols = [col for col in part_df if pd.api.types.is_string_dtype(part_df[col].dtype)]
+        str_cols = [
+            col for col in part_df
+            if (pd.api.types.is_string_dtype(part_df[col].dtype) and isinstance(part_df[col].iloc[0], str))
+        ]
         if len(str_cols):
             print(f"WARNING: Text columns not supported by XGBoost - dropping {str_cols}")
             part_df = part_df.drop(columns=str_cols)

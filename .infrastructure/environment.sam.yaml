@@ -396,6 +396,9 @@ Resources:
 
 
 ########  REQUIRED SERVICE ROLES: For SageMaker Projects/JumpStart to work  ########
+  # MODIFIED from console role:
+  # - Allow s3:GetObject broadened from resources 'arn:aws:s3:::sagemaker-*' to '*'
+  # TODO: Is it possible to restore this back to just the standard role?
   AmazonSageMakerServiceCatalogProductsLaunchRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -621,8 +624,7 @@ Resources:
                     's3:ExistingObjectTag/servicecatalog:provisioning': 'true'
               - Effect: Allow
                 Action: 's3:GetObject'
-                Resource:
-                  - 'arn:aws:s3:::sagemaker-*'
+                Resource: '*'
               - Effect: Allow
                 Action:
                   - 's3:CreateBucket'
@@ -660,6 +662,16 @@ Resources:
                   - 'arn:aws:states:*:*:stateMachine:sagemaker-*'
                 Effect: Allow
 
+  # MODIFIED from the standard AWS Console role as follows:
+  # S3 s3:CreateBucket and other co-listed grants broadened from:
+  # - arn:aws:s3:::aws-glue-*
+  # - arn:aws:s3:::sagemaker-*
+  # ...to '*'
+  #
+  # S3 s3:AbortMultipartUpload and co-listed grants broadened from:
+  # - arn:aws:s3:::aws-glue-*
+  # - arn:aws:s3:::sagemaker-*
+  # ...to '*'
   AmazonSageMakerServiceCatalogProductsUseRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -828,9 +840,7 @@ Resources:
                   - s3:ListBucketMultipartUploads
                   - s3:PutBucketCors
                 Effect: Allow
-                Resource:
-                  - arn:aws:s3:::aws-glue-*
-                  - arn:aws:s3:::sagemaker-*
+                Resource: '*'
               - Action:
                   - s3:AbortMultipartUpload
                   - s3:DeleteObject
@@ -838,9 +848,7 @@ Resources:
                   - s3:GetObjectVersion
                   - s3:PutObject
                 Effect: Allow
-                Resource:
-                  - arn:aws:s3:::aws-glue-*
-                  - arn:aws:s3:::sagemaker-*
+                Resource: '*'
               - Action:
                   - sagemaker:*
                 Effect: Allow

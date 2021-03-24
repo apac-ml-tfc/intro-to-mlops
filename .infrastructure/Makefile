@@ -49,8 +49,9 @@ create: ##=> Create environment stack (only)
 	aws cloudformation create-stack \
 			--template-body file://environment.tmp.yaml \
 			--stack-name $(STACK_NAME) \
-			--capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
-			--disable-rollback
+			--capabilities CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
+			--disable-rollback \
+			--parameters ParameterKey=SCPrincipal,ParameterValue='role/Admin'
 			# (disable rollback for debugging)
 			# TODO: Support --parameters through MAKE?
 
@@ -61,8 +62,8 @@ create.project: ##=> Create project stack (only)
 			--template-body file://project.tmp.yaml \
 			--stack-name $(STACK_NAME) \
 			--capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
-			--disable-rollback
-			# --parameters ParameterKey=StudioUsers,ParameterValue=tmpuser
+			--disable-rollback \
+			--parameters ParameterKey=StudioUserName,ParameterValue=mydemouser
 			# TODO: Support --parameters through MAKE?
 
 deploy: ##=> Deploy environment (flexible create or update)
@@ -70,7 +71,8 @@ deploy: ##=> Deploy environment (flexible create or update)
 	sam deploy \
 			--template-file environment.tmp.yaml \
 			--stack-name $(STACK_NAME) \
-			--capabilities CAPABILITY_IAM
+			--capabilities CAPABILITY_NAMED_IAM \
+			--parameters SCPrincipal='role/Admin'
 			# TODO: Support --parameter-overrides through MAKE?
 
 deploy.project: ##=> Deploy project stack (flexible create or update)

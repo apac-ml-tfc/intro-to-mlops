@@ -1,0 +1,974 @@
+{
+  "metadata": {
+    "version": 1
+  },
+  "nodes": [
+    {
+      "node_id": "b2fea43c-ecb0-44f3-af2a-f7bc38a738b5",
+      "type": "SOURCE",
+      "operator": "sagemaker.s3_source_0.1",
+      "parameters": {
+        "dataset_definition": {
+          "__typename": "S3CreateDatasetDefinitionOutput",
+          "datasetSourceType": "S3",
+          "name": "german.csv",
+          "description": null,
+          "s3ExecutionContext": {
+            "__typename": "S3ExecutionContext",
+            "s3Uri": "s3://DOC-EXAMPLE-BUCKET/german.csv",
+            "s3ContentType": "csv",
+            "s3HasHeader": true
+          }
+        }
+      },
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "4d136854-1658-4a07-a812-07bca9f76a90",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.infer_and_cast_type_0.1",
+      "parameters": {},
+      "trained_parameters": {
+        "schema": {
+          "txn_id": "long",
+          "txn_timestamp": "long",
+          "checking_acct_status": "string",
+          "duration_months": "long",
+          "credit_history": "long",
+          "purpose": "string",
+          "credit_amount": "long",
+          "savings_status": "string",
+          "present_employment_yrs_lt": "long",
+          "installment_rate_disp_income_pct": "long",
+          "marital_status_and_gender": "string",
+          "other_parties": "string",
+          "present_residence_since": "long",
+          "highest_property": "string",
+          "age_in_years": "long",
+          "other_installment_plans": "string",
+          "housing": "string",
+          "n_existing_credits_this_bank": "long",
+          "job_type": "long",
+          "n_dependants": "long",
+          "telephone": "string",
+          "foreign_worker": "string",
+          "credit_risk": "string"
+        }
+      },
+      "inputs": [
+        {
+          "name": "default",
+          "node_id": "b2fea43c-ecb0-44f3-af2a-f7bc38a738b5",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "8121a7ee-1aaa-446b-9c6c-440323e7ba84",
+      "type": "VISUALIZATION",
+      "operator": "sagemaker.visualizations.custom_visualization_0.1",
+      "parameters": {
+        "code": "\"\"\"SMDW Chart Script: Summarize missing values by column\"\"\"\n\nimport altair as alt\nimport numpy as np\nimport pandas as pd\n\ndf_len = len(df)\ncolnames = df.columns.to_list()\n# Something odd going on with list comprehensions throwing a NameError on `df` at the time of writing, so\n# we'll just use a for loop:\nnacounts = []\nnapcts = []\nfor c in colnames:\n    nacount = df[c].isna().sum()\n    nacounts.append(nacount)\n    napcts.append(nacount / df_len)\n\nchart_df = pd.DataFrame({\n    \"column\": colnames,\n    \"nacount\": nacounts,\n    \"napct\": napcts,\n})\n\nbars = alt.Chart(\n    chart_df,\n    title=f\"Missing values by field (from {df_len} records)\",\n).mark_bar().encode(\n    x=alt.X(\"napct:Q\", axis=alt.Axis(format='%'), title=\"Percentage of records\"),\n    y=alt.Y(\"column:N\", sort=None, title=\"Field\"),\n)\ntext = bars.mark_text(\n    align=\"left\",\n    baseline=\"middle\",\n    dx=3  # Nudges text to right so it doesn't appear on top of the bar\n).encode(text=\"nacount:Q\")\n\nchart = bars + text\n",
+        "name": "Initial Missing Values"
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "4d136854-1658-4a07-a812-07bca9f76a90",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "9b779d36-b051-4395-a46b-0bc7f0f0ba40",
+      "type": "VISUALIZATION",
+      "operator": "sagemaker.visualizations.quick_model_0.1",
+      "parameters": {
+        "name": "Initial Quick Model",
+        "label": "credit_risk"
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "4d136854-1658-4a07-a812-07bca9f76a90",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "5d0391b1-785d-4f67-9e54-9d691a0f2b47",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.custom_formula_0.1",
+      "parameters": {
+        "output_column": "credit_default",
+        "formula": "cast(credit_risk == \"bad\" as int)"
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "4d136854-1658-4a07-a812-07bca9f76a90",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "f453e472-5a9e-4a62-8479-86245c081d35",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.manage_columns_0.1",
+      "parameters": {
+        "operator": "Drop column",
+        "drop_column_parameters": {
+          "column_to_drop": "credit_risk"
+        }
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "5d0391b1-785d-4f67-9e54-9d691a0f2b47",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "b88bd179-de0d-44f7-8f66-a9a92fa87139",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.manage_columns_0.1",
+      "parameters": {
+        "operator": "Move column",
+        "move_column_parameters": {
+          "move_type": "Move to start",
+          "move_to_start_parameters": {
+            "column_to_move": "credit_default"
+          }
+        },
+        "drop_column_parameters": {}
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "f453e472-5a9e-4a62-8479-86245c081d35",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "6e9dbc7c-5b70-424a-b6e3-18aec148580f",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.custom_formula_0.1",
+      "parameters": {
+        "output_column": "has_telephone",
+        "formula": "cast(telephone == \"yes\" as int)"
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "b88bd179-de0d-44f7-8f66-a9a92fa87139",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "78ba41b1-024e-4d2d-a694-d23d0e4e9f71",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.manage_columns_0.1",
+      "parameters": {
+        "operator": "Drop column",
+        "drop_column_parameters": {
+          "column_to_drop": "telephone"
+        }
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "6e9dbc7c-5b70-424a-b6e3-18aec148580f",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "231809e9-4e4d-486e-8971-af93b4d0d18d",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.custom_formula_0.1",
+      "parameters": {
+        "output_column": "is_foreign_worker",
+        "formula": "cast(foreign_worker == \"yes\" as int)"
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "78ba41b1-024e-4d2d-a694-d23d0e4e9f71",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "7a93f63d-6613-4fea-8f72-b22c11c01cc0",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.manage_columns_0.1",
+      "parameters": {
+        "operator": "Drop column",
+        "drop_column_parameters": {
+          "column_to_drop": "foreign_worker"
+        }
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "231809e9-4e4d-486e-8971-af93b4d0d18d",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "4bfcc5a6-98ec-4262-8902-937034089094",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.search_and_edit_0.1",
+      "parameters": {
+        "operator": "Extract using regex",
+        "extract_using_regex_parameters": {
+          "input_column": "checking_acct_status",
+          "pattern": "\\d+"
+        },
+        "find_and_replace_substring_parameters": {}
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "7a93f63d-6613-4fea-8f72-b22c11c01cc0",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "27a9cb6f-c7dc-4de1-a417-c847210af5d7",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.cast_single_data_type_0.1",
+      "parameters": {
+        "column": "checking_acct_status",
+        "original_data_type": "String",
+        "data_type": "long"
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "4bfcc5a6-98ec-4262-8902-937034089094",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "4886d40f-bdfb-4790-9737-1634a4e261cb",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.handle_missing_0.1",
+      "parameters": {
+        "operator": "Fill missing",
+        "fill_missing_parameters": {
+          "input_column": "checking_acct_status",
+          "fill_value": "0"
+        },
+        "impute_parameters": {
+          "column_type": "Numeric",
+          "numeric_parameters": {
+            "strategy": "Approximate Median"
+          }
+        }
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "27a9cb6f-c7dc-4de1-a417-c847210af5d7",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "87bb5f38-f8d9-4ba2-8312-f45d6d4ddee6",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.search_and_edit_0.1",
+      "parameters": {
+        "operator": "Extract using regex",
+        "extract_using_regex_parameters": {
+          "input_column": "savings_status",
+          "pattern": "\\d+"
+        },
+        "find_and_replace_substring_parameters": {}
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "4886d40f-bdfb-4790-9737-1634a4e261cb",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "d927716b-0f53-4e3a-9307-37a05b7c9c8c",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.cast_single_data_type_0.1",
+      "parameters": {
+        "column": "savings_status",
+        "original_data_type": "String",
+        "data_type": "long"
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "87bb5f38-f8d9-4ba2-8312-f45d6d4ddee6",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "2d9f5b27-f28b-4de6-82e7-7392c1139fb2",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.handle_missing_0.1",
+      "parameters": {
+        "operator": "Fill missing",
+        "fill_missing_parameters": {
+          "input_column": "savings_status",
+          "fill_value": "0"
+        },
+        "impute_parameters": {
+          "column_type": "Numeric",
+          "numeric_parameters": {
+            "strategy": "Approximate Median"
+          }
+        }
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "d927716b-0f53-4e3a-9307-37a05b7c9c8c",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "ba66c16f-a377-4f81-86fc-85f636784b78",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.search_and_edit_0.1",
+      "parameters": {
+        "operator": "Extract using regex",
+        "extract_using_regex_parameters": {
+          "input_column": "highest_property",
+          "pattern": "\\d+"
+        },
+        "find_and_replace_substring_parameters": {}
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "2d9f5b27-f28b-4de6-82e7-7392c1139fb2",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "f5b45ef5-daff-420d-acff-f53378746f1f",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.cast_single_data_type_0.1",
+      "parameters": {
+        "column": "highest_property",
+        "original_data_type": "String",
+        "data_type": "long"
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "ba66c16f-a377-4f81-86fc-85f636784b78",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "ca16cfbb-ad75-4f28-a3a3-3b717447080a",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.search_and_edit_0.1",
+      "parameters": {
+        "operator": "Split string by delimiter",
+        "split_string_by_delimiter_parameters": {
+          "input_column": "marital_status_and_gender",
+          "delimiter": " : ",
+          "limit": 2
+        },
+        "find_and_replace_substring_parameters": {}
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "f5b45ef5-daff-420d-acff-f53378746f1f",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "aecdfa5d-a7cf-4014-bcc4-0d5c2ff8f968",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.custom_formula_0.1",
+      "parameters": {
+        "output_column": "gender_is_male",
+        "formula": "cast(marital_status_and_gender[0] == \"male\" as int)"
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "ca16cfbb-ad75-4f28-a3a3-3b717447080a",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "21fe717e-e619-45f7-876b-d6d1c45004e7",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.manage_vectors_0.1",
+      "parameters": {
+        "operator": "Flatten",
+        "flatten_parameters": {
+          "vector_length": "First vector",
+          "input_column": "marital_status_and_gender"
+        }
+      },
+      "trained_parameters": {
+        "flatten_parameters": {
+          "vector_length": 2
+        }
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "aecdfa5d-a7cf-4014-bcc4-0d5c2ff8f968",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "db10d37b-6319-4026-b973-e2386dd8c537",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.featurize_text_0.1",
+      "parameters": {
+        "operator": "Vectorize",
+        "vectorize_parameters": {
+          "tokenizer": "Custom",
+          "vectorizer": "Count Vectorizer",
+          "apply_idf": "No",
+          "output_format": "Columns",
+          "tokenizer_custom_parameters": {
+            "minimum_token_length": 1,
+            "gaps": true,
+            "pattern": "/",
+            "lowercase_before_tokenization": true
+          },
+          "vectorizer_count_vectorizer_parameters": {
+            "minimum_term_frequency": 1,
+            "minimum_document_frequency": 1,
+            "maximum_document_frequency": 0.999,
+            "maximum_vocabulary_size": 262144,
+            "binarize_count": false
+          },
+          "apply_idf_no_parameters": {},
+          "apply_idf_yes_parameters": {
+            "minimum_document_frequency": 5
+          },
+          "tokenizer_standard_parameters": {},
+          "input_column": "marital_status_and_gender_1",
+          "output_column": "marital_status"
+        },
+        "character_statistics_parameters": {}
+      },
+      "trained_parameters": {
+        "vectorize_parameters": {
+          "_hash": -4351759734974217700,
+          "vectorizer_model": "P)h>@6aWAK2mp0bZBkFcCHMFM006xK000vJ003=ebYWy+bYU-WVRCdWFfcGMFqMx>Ps1<}gzx+epHs_u*>SD~Zk3Qgy;@tx0SiAOKM=I)f5!op0|F#&tJ&FaW=}{Oh!Ks*her$x$R~y40^u23gJ%UP2ZgsjyR=s_`Jj&~?EIt*s!-Ba#RPUiV@>OxwuB8eue%C;5cVoW?OkEFm|(I2dvqI8?y{bW_zfyJlaltF^|P9asSv>Kps-KKYIl8GLNKY;`QbAAoR*xn-V~fj$}U2BBi0D*z7`j~s0ZyJyrFRh6IDUM>xw0qb6%krFX3=ss-Ur<P2F|p3QcN;Y|`C7yZrT<5TDLp>u}sOZOa<c(xLAdqc`>NQ@iukJ5Wml1QY-O00;neQf*Sko%-Ys0000C0000O0001OWprU=VRT_HE^uLTbS*G2FfcGKV{&6lE=p!#U|?eSu6ocP08mQ<1QY-O00;neQf*Qq)3*1b0RRA00ssI=0001FVRT_HaA9(EEif=JFfc7*H8D74G-Ws~H8DA5Ei^S@Wi4T1VP-8kGG<{mG&E*qWHm7@V=yo<E^}^SaBz7paA9(Bb!BvIQqgMLFcg)Y&dEYv6=X0Y2vS<`ggvL86ZW!~QOX!)>}?xEw&YGswo_S7R!aV0Z~M7D?oYPsHt7Z%T*TGA=Ukn0(dEmxF-G{C0}<jeq#pKy6rBvWN;F$3$VjM7V+tt{La&Gm=ite}@jm<-c#yZMzS43CS;dV}QapC>SGnefTPa3RKCpYpek6AN*XNTKKwmz!#b;S@?4mQ5j5kfe^G<VfgI(;Qvm<h(RcoP(Cv%q!rIwYf?Hr-0>j!>tJPPo{pCixD{^H(o4p{6?$J3t<#PR6G|84mJxJI~l)+1fyhlDidit#lEb?i<k+ep)@rY4UP7O@DC(|-`{wPui9chWM`Y*{5O7u<64-MOXqW-aN8w$^lor6Dbq)S{)U_qVj>Rp0t!0NVHP2O6xF_vO8*cMrp0`%o^L+HzI5Z#u2%3Z9U=kk)YFxt8~ZkRIf~*xl~q4v~w!*r%15?cL2{7Dp_eo#dU;ViuK4Q7#f8%QDZhQamrSG)+aCq{}#4JWG<OT%@^Jp87!m+xy`lbP50IH&9Ch1QY-O00;neQf*T35vu1B0000G0000@0001FVRT_HE^uLTbS*G2FfcGJVl^>1Wi(|tEj2MYWi2!{VP!30Vqs=2IWlHpHZ(M5Wn?umEn_e+FfMa$VQ_GHE^uLTadl;ME@N_IOD;-gU|?Wk;N5s%=#Znvb^uUI0Rj{Q6aWAK2mp0bZBkFcCHMFM006xK000vJ0000000000005+c00000ZDn*}WMOn+FK}UUbS*G2FfcGsO928D0~7!N00;neQf*Sko%-Ys0000C0000O00000000000001_fhhq10BvP-VPs)+VJ|LlVRCdWFfcGMFfL<qV^B*00u%!j000080CiGrQX<o~_o4v+08|1107w7;00000000000HlF!0RRAGVRT_HaA9(EEif=JFfc7*H8D74G-Ws~H8DA5Ei^S@Wi4T1VP-8kGG<{mG&E*qWHm7@V=yo<E^}^SaBz7paA9(Bb!Bu=O928D0~7!N00;neQf*T35vu1B0000G0000@00000000000001_fpr4_0AyiwVJ|LlVRCdWFfcGMFfC#=F*s#3WjHN0F*#)|G&NymEn#9|W-U1~W??ooG-hRFH8Cw?FfcGKb8ca9aCt6pVRCVGWpplMa$`_S1qJ{B000C41ORve008m>00000"
+        }
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "21fe717e-e619-45f7-876b-d6d1c45004e7",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "cfb5a69f-695d-4b7e-92e7-f495138870ac",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.manage_columns_0.1",
+      "parameters": {
+        "operator": "Drop column",
+        "drop_column_parameters": {
+          "column_to_drop": "marital_status_and_gender"
+        }
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "db10d37b-6319-4026-b973-e2386dd8c537",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "46c1861c-78a3-45cf-bc22-7364bc9e6982",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.manage_columns_0.1",
+      "parameters": {
+        "operator": "Drop column",
+        "drop_column_parameters": {
+          "column_to_drop": "marital_status_and_gender_0"
+        }
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "cfb5a69f-695d-4b7e-92e7-f495138870ac",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "f67bf30d-1cb1-4f8b-8759-e2f583fe7e98",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.manage_columns_0.1",
+      "parameters": {
+        "operator": "Drop column",
+        "drop_column_parameters": {
+          "column_to_drop": "marital_status_and_gender_1"
+        }
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "46c1861c-78a3-45cf-bc22-7364bc9e6982",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "1f2878f5-3948-4c38-bce4-c45183faac50",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.encode_categorical_0.1",
+      "parameters": {
+        "operator": "One-hot encode",
+        "one_hot_encode_parameters": {
+          "invalid_handling_strategy": "Keep",
+          "drop_last": false,
+          "output_style": "Columns",
+          "input_column": "purpose"
+        },
+        "ordinal_encode_parameters": {
+          "invalid_handling_strategy": "Replace with NaN"
+        }
+      },
+      "trained_parameters": {
+        "one_hot_encode_parameters": {
+          "_hash": -1767228197713558300,
+          "string_indexer_model": "P)h>@6aWAK2mrfNZBm0K-r?Q=003nH000vJ003=ebYWy+bYU-WVRCdWFfcGMFm;YiPs1<}MDP5JJ*QSeOi+7;OAi%DAg<A3Z(6JVVr?TzmH&<j5)u-<j^@3YGboEG!3F~F1x8c{5-B1dg|lKJ%!NrjWj21l^_o72cR`bd2C{LKGP($xZs=}?zU$Xgc0&UT|3aKh@YURlR<tX0pMKR=t{7dzKgw~Cx7Wj~TuZG~tyCV}4y*YLq2yTdU9c6(<l?Bp_qy@FX)GK=q8c91YfD@Ij&>P25=EFB&@^GO`SF7G@|SV^=~Z`HN)N1wpHGo0HZi>w^6GR?N&T}<%z<H^uf70KO9KQH000080J~FdQUv1ks}2AF01N;C02lxO0BvP-VPs)+VJ|LlVRCdWFfcGMFfL<qV@obdW?*1oVt9B@tr-ANO9KQH000080J~FdQgm$j2KE5}022cM07w7;0AyiwVJ~oDa&#>)FfcGMEio`TGB!6fH!Wr~V__{cFgIf@VmD$qEj3{|H#s;pWHd83GA&~;FfcB2Zeeh6c`k5aa&dKKbd6KNYTG~%-6*l+xG5CsH4^Ax1P%$f!mb_FHofH1mL5tdJrqhYEA1#*vRcWztAr5zCq0!ON<X8Q_5=DM{e+HUJ55^xy-080o7tK7gpQA14=ADE9s1Sj(H6owt@{z#Z)&ib2_@8t+lWge6c|GY`Lyx#Sq<N{&tICvLC~r_z^7(h<TDEr&V>=V+D0y6dZyswA;PrOO4w4v4CbXMGElZbb^=}+;0@H*19lJtFB4|(KmVbjU_zU!pXV7EE0P&23MrUMz|@h>?I~!}tmfZrOC3+X*fj;yXET$WLdK{=4juQNWHCr{q&2&w4y}{JEq6-_W0&$au3oM6w?uclzr`*gZO8LHf3M-wU9U^(-rL*vUN^0a|2R;m-D-c_Y=79?YdpO(UeCu5Kxh?fRqPP2=eoH*30c9=N_g!mJV(zMv0EF4{jg8mgMTW_T!skdCD>5s7hwjLab}tOZR0AimjwjVz*t=-Hs}SZ0Le`-eRmZomQ~U%N2o9BZ~EAZUKxAyA8IuVjUt`o%A#xYs+2OA;s&s|gH(86v4kbj3)U8J)?)E~LEM)sgO4)ZStZgLgoA!K=<LU(ki64RCp;YuIizVk9;f_CI*y`<N5g0`7>^zghy8RE#e8z$`93B-!Pt-SclZTRO9KQH000080J~FdQkfbnp%MT901yBG08Ib@0AyiwVJ|LlVRCdWFfcGMFfB1KIWjgkG&e0~G-F{cG%z<~En+ufI4w0{IX5{tHDok1H!>|_FfcGKb8ca9aCt6pVRCVGWpplMa$`#_N@ieSU}C5=G`aLCrt%&DP)h*<6ay3h000O8yHjmagC^eL-T(jqWdQ&H6951J0000000000q=5hc003=ebYWy+bYU-WVRCdWFfcGMFi=YY0u%!j000080J~FdQUv1ks}2AF01N;C02lxO00000000000HlEr0RRAPWprU=VRT_HE^uLTbS*G2FfcGKV{&6qO928D0~7!N00;oPQ*BaoZ21QE0RR9K0{{R>00000000000001_fl~nh0AyiwVJ~oDa&#>)FfcGMEio`TGB!6fH!Wr~V__{cFgIf@VmD$qEj3{|H#s;pWHd83GA&~;FfcB2Zeeh6c`k5aa&dKKbWlqH0u%!j000080J~FdQkfbnp%MT901yBG08Ib@00000000000HlGh0{{SIVRT_HE^uLTbS*G2FfcGJF)%qYHa9dkEoL-hVJ$Q;H)AbgH)1#~HDNh7IXE?BG&46cEn_e+FfMa$VQ_GHE^uLTadl;ME@N_IP)h{{000001ONm8cmV(aECc`m000",
+          "one_hot_encoder_model": "P)h>@6aWAK2mrfNZBm;4<1N(y003zL000vJ003=ebYWy+bYU-WVRCdWFfcGMFm;Z-PQySD274Z3Yv*KRaEx1o1QHQcw5P>hCl>doy*&z|ygN$}5Q;QctY+rBJ&X=>h5;gP4JI6SWO71&Gv1k*PzsZI3UnXkE{t&^-st0?0$Ds|L7!k~y5_oToA&0ayIfar^k0bc5`&goQ=58){v)hv^~y5o@n6yst((4nrM{(J5%tk;P|JIWMN*O5=v1;oKG`uk`xTlvrbo;I!;CId1xxrPe?Y}{7$!##;T_#^nV2KPL4BIBIC(x9`%4NJEuM~_|FN~--1)J?#V1fp0|XQR000O8yHjmat|C^J4gdfE3;+NC7ytkOZDn*}WMOn+FD`Ila&#>)FfcGME@N_IOD;-gU|?Wk(0%-G764F70|XQR000O8yHjma_NeIGf&l;kFaiJoNB{r;WMOn+FK}UUbS*G2FfcGJHDqBlIb<_oEi+{|F)cJ=H8U+ZWj8o2GdE&2HZU+@W@0liEn_e+FfMa$VQ_GHE^uLTadl;MeNtU(+b|SWv@9*GedvRX41NfLh7??3&xz}VKD2LTj8WFUl~R;g>da(2k(7-z4eV$12lj{b=A&h0FbOXA<D7fX6}mkC9uq_u>4XG>(;}^aHa{VRHr7MkzalsXXBg}UxL`3_WeN7bUhLV4FhB3?_=hY7!Kjbv{#ZD9Uz_<=@gOa<Z=rsZHg#bg00=%rbVq7g%E}=R`+*;Hb^~a3h+2O3p1dZ#f(iDp_vrm;baqewqty>!9~iT$JbD=UA*Hps=VBs2Bwy?0zofB6UD1yTk9dUW(LV?~)f}AZOge7r-@KGg<iZL1)L1Y#pGY=j)|uJZv5=`k>fEy7&4N{;T$SFf0f-IbjVX)~b4YJjyWV7r3P{pGeq2{h6qWrp)0z#H&{i%(RzW028lW&(hU`@nG+r)mmxzAZDn2evd%I#g=5fU1c6T%@bl#5CAXmL4mr9MYOywskOVcz@lXMVgz0XM!sa`tD2S<JozzaS%5W0lF@&Zsx0|XQR000O8yHjma@LwBy5&!@I5C8xGO#lD@WMOn+FD`Ila&#>)FfcGMEj46eG&y85VJ$OdH!&?VVl^`@IAu3DEi*S_H8wCXVP;}8FfC&+FfcB2Zeeh6c`k5aa&dKKbS`6ZV@obdW?*1oVz}kMyZqcgD>DF4O928D0~7!N00;oPQ*Bb3{^Kpx0001K0RR9K00000000000001_fdBvi0BvP-VPs)+VJ~oDa&#>)FfcGMP)h*<6ay3h000O8yHjmat|C^J4gdfE3;+NC7ytkO0000000000q=5zj003=ebYWy+bYU+paA9(EEif=JFfcA-a$`_S0Rj{Q6aWAK2mrfNZBq8A=-h$<001xo002k;0000000000005+cN&x@>WMOn+FK}UUbS*G2FfcGJHDqBlIb<_oEi+{|F)cJ=H8U+ZWj8o2GdE&2HZU+@W@0liEn_e+FfMa$VQ_GHE^uLTadl;MP)h*<6ay3h000O8yHjma@LwBy5&!@I5C8xGO#lD@0000000000q=7O6003lRbYU+paA9(EEif=JFfc7OWMMQpWHVtcGi5h1Ei_^^Gc7n}H#jXbH)1t5Ffd_eVlyx;V=yo<E^}^SaBz7paA9(Bb!BueV{&6qO9ci10000400aPd0RRB60{{R300"
+        }
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "f67bf30d-1cb1-4f8b-8759-e2f583fe7e98",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "91822ab6-6e0c-40e2-90dc-f692420a631c",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.encode_categorical_0.1",
+      "parameters": {
+        "operator": "One-hot encode",
+        "one_hot_encode_parameters": {
+          "invalid_handling_strategy": "Keep",
+          "drop_last": false,
+          "output_style": "Columns",
+          "input_column": "other_parties"
+        },
+        "ordinal_encode_parameters": {
+          "invalid_handling_strategy": "Replace with NaN"
+        }
+      },
+      "trained_parameters": {
+        "one_hot_encode_parameters": {
+          "_hash": -1767228197713558300,
+          "string_indexer_model": "P)h>@6aWAK2mmuwZBo;!E6?8m003(N000vJ003=ebYWy+bYU-WVRCdWFfcGMFnx|cOT<7BM|(fU)VU=wB<i)=TyZEUwqeLlF3asdXLrT($ai;)ASh@v#gF$MbB57kO0b2%2Za&GnN*6%N9C-V2y<alkC}}>?7XHo;(gF$p@M82rHn4Zw&|O$Z{^-JeP6-qKNBYtyp&s2t9pa(-EV5~iqSIuNDgf`>FMecuRBeGh>vcMQa;0sUR&DvSG22mB#MHBl4HrY!OE1$#bFGePZ|HchCEAIQrS>~r2<V87Mmabi4$|+U-iE~9fmJXgtS8UtcjmakwlxAUJCi~bVq4~Wx4nOP)h>@6aWAK2mmuwZBl^^OQa3}000aC000;O003=ebYWy+bYU+paA9(EEif=JFfcA-a$`#_N@ieSU}8A0z3MUmP)h>@6aWAK2mmuwZBo2rK7X45005i<002k;003lRbYU-WVRCdWFfcGMFfB4<G&eOgW;iWkHezHgG%_`0En+odWG!T7GdE*qW@R-nGGr}dFfcGKb8ca9aCt6pVRCVGWps^F(Q4Z;6qQ}q%}8DqZ16)cq@<7udrsXX^rdg552KVl48|C;C1qx^>`L-R>GD^jzp&rhO_OdZ>tHY9-gC~?(YfgQ;wHri3(Th2hr-8xl%t8K8pVTt+0eF?RY{da2xZX$oCg!+IY(aY9QM9%RIdPAbyS0<(S2z4hOisT%YkXB{_@F`pLtEOi%#93FKNN0xzL*4VHf-8)C)XW8M~#Axa2k8j6bLFVEl(1BQ$iwD2$GK5gvqN<cII~?|mG45<hFOJM@PS&hUqG+&h0cY#6~V5Lki<C|wjzgP_qXLR$(s$YUh(m1|QqDmctYLJ}05{G~9rl0b3WaZ7abjnv#yMlB6~I`^@?Yk9nkjn!Rg<7q4^E}4m!AMRsC>kYLR2l%c2_Z;29yHxM~gWY&lY6WoFC`&74-gZ*POLzfa{{vLe&_ePpFpZxgfY*BcagBnjUBK719_=<VN=cfKbTlctO0rQR7EH`C#)T;6bHUEUJkN8MXZa$X&)#HNB4&BP7AIj8!Nzk~`!)Q_Ur<W}1QY-O00;mxRBcjuJf-{+0000G0000@0001FVRT_HE^uLTbS*G2FfcGJGGsJ2H8f^8En+reWGyr@HDoPfHDY8fWM(rrV`gS$H83({En_e+FfMa$VQ_GHE^uLTadl;ME@N_IOD;-gU|?Wkc&QV@YQ^KU0{~D<0Rj{Q6aWAK2mmuwZBo;!E6?8m003(N000vJ0000000000005+c00000ZDn*}WMOn+FK}UUbS*G2FfcGsO928D0~7!N00;mxRBcj$4NIgB0000C0000O00000000000001_fe--z0BvP-VPs)+VJ|LlVRCdWFfcGMFfL<qV^B*00u%!j0000805eo=QoLh6f13dS0Gt8<07w7;00000000000HlFb0RRAGVRT_HaA9(EEif=JFfc7LWHdK5G-fz0Vm4xAEi^JUWG!MfVq`63W-~WqW@cqIFfwE<V=yo<E^}^SaBz7paA9(Bb!Bu=O928D0~7!N00;mxRBcjuJf-{+0000G0000@00000000000001_fmH(l0AyiwVJ|LlVRCdWFfcGMFfB4<G&eOgW;iWkHezHgG%_`0En+odWG!T7GdE*qW@R-nGGr}dFfcGKb8ca9aCt6pVRCVGWpplMa$`_S1qJ{B000C41ORve007bh00000",
+          "one_hot_encoder_model": "P)h>@6aWAK2mmuwZBkoD06f?L003zL000vJ003=ebYWy+bYU-WVRCdWFfcGMFm;c;PQySDgnJ%iYv*Lku|wQONQp!Q742!|TN8`>)7~8gk>8yq2na=*DQ0KB(Vk(nm=X*S_*G%V@kA;`<TvH4nh0}YQcs@tAwT#r7~-Rdg$nZQC}ngJhNf@2z7^fJ-F*d@{tI!MgBNnEYE`e$efU)^y)qjy{~`5u-I)%j^`>t&5|KW-BMSKpC-lbB!M~%u6p1;oWDJM+h$+J`p-oglC^?qA3syoplZ$!`R(~zd{`c_X!y*Klu-N>3HTDP1T!eXR{Cey5Ct82!U|H@y0Z>Z=1QY-O00;mxRBcjvn==d!0000C0000O0001OWprU=VRT_HE^uLTbS*G2FfcGKV{&6lE=p!#U|?dfVQ`NI08mQ<1QY-O00;mxRBcierHROX0RR9n0ssI=0001FVRT_HaA9(EEif=JFfc7MV>xAHG-Na_H8V6aEi_|eI4xp1I5sUdH#jghHfAw7IbvfiV=yo<E^}^SaBz7paA9(Bb!BvYQcX)MF%(T>tuA!oB0~mdQ34i)G0eQF<FvTYors92J9#|PPNKuh%+w@Rsuuhi{y=|-x3-ERn84+JoOAEFA!mo@F+qfpPDn5~Ez$~TvxyLzTMuo0iQsG;V6aPY!D2Ma66~KGt=W+<|Nq(HjVuMhXcyD<p>XoLHj|6uL0V|vLc2}c)P;2bAb1ne6{%$@D~CMn2Y%354WQX3YWdlB@;m7ROt6Q&C-1q@S>69ds~^BVFlJVH@-Xs4N^5h?#Ylii{;rqbNn?w;qRR=7c!cQo4}`td9Gu&+bllYUyp&Gl!U_7)cw}xelC00HGvlFSAyb9axn=#UM^=e)R{FLEAm)rurZ7fKAiY@aa-J<JAV~xHVO=><RQ7bNHR~&(t(=Cef=CQBKw+>9*@q@*Je~fXB6_?~yi=O?V#RjM<A}%Yt--j^c{@_QTy>LNDmBP5mG7x6P18J0(q5c(|0GGIy6GVAZTmq0FZkL(=nVeK8&FFF1QY-O00;mxRBcj{(G<cG0000G0000@0001FVRT_HE^uLTbS*G2FfcGJGh;brWHe+nEj2SVGA%S?V>m5hIXE^gHa9phHa2E4IXPluEn_e+FfMa$VQ_GHE^uLTadl;ME@N_IOD;-gU|?Wk__^qQ&$)kAW&lu20Rj{Q6aWAK2mmuwZBkoD06f?L003zL000vJ0000000000005+c00000ZDn*}WMOn+FK}UUbS*G2FfcGsO928D0~7!N00;mxRBcjvn==d!0000C0000O00000000000001_fe8Ts0BvP-VPs)+VJ|LlVRCdWFfcGMFfL<qV^B*00u%!j0000805eo=QWT|$$bJC;05Ado07w7;00000000000HlFU0RRAGVRT_HaA9(EEif=JFfc7MV>xAHG-Na_H8V6aEi_|eI4xp1I5sUdH#jghHfAw7IbvfiV=yo<E^}^SaBz7paA9(Bb!Bu=O928D0~7!N00;mxRBcj{(G<cG0000G0000@00000000000001_fiVLB0AyiwVJ|LlVRCdWFfcGMFfB7<Ib~!tWHc=`Gc+<SG-G2pEn+!1HZ3+cI50LgW-&QAVq-01FfcGKb8ca9aCt6pVRCVGWpplMa$`_S1qJ{B000C41ORve006E700000"
+        }
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "1f2878f5-3948-4c38-bce4-c45183faac50",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "b3e53068-f5a3-407f-a855-8fa2dd8c9e88",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.encode_categorical_0.1",
+      "parameters": {
+        "operator": "One-hot encode",
+        "one_hot_encode_parameters": {
+          "invalid_handling_strategy": "Keep",
+          "drop_last": false,
+          "output_style": "Columns",
+          "input_column": "other_installment_plans"
+        },
+        "ordinal_encode_parameters": {
+          "invalid_handling_strategy": "Replace with NaN"
+        }
+      },
+      "trained_parameters": {
+        "one_hot_encode_parameters": {
+          "_hash": -1767228197713558300,
+          "string_indexer_model": "P)h>@6aWAK2mnA-ZBkXHcLnAE004CX000vJ003=ebYWy+bYU-WVRCdWFfcGMFnx|sOT;h`NAG@&oV%g5+kku3%N`a5#cLUo={9WsIZ4EI>34UmASmc94DY@CE<!uVS?ollql5%{Mwt`PNqQ$Igi;CRV<8)k`(W@5=@1P%(THL_<^n#6U8lN1^_|+bs#lFz{b!_XW8iWxTiI^FzlTlBUbTjgKa%6k&~?|tRzq(lM%V{`04`s|48b_uhgWc`ctT8!*pO<ujqY=KnK@wtk8#dpC}VOEGDESJZ>peAqvq$*2!j(;S04WP28km5O8mWf9KSdg@(SIPL3%nTWNjjRsTlP64zm`^a`gdFO9KQH0000806<i2QZBu7a1H<f01N;C02lxO0BvP-VPs)+VJ|LlVRCdWFfcGMFfL<qV@obdW?*1oVqh&_7774RO9KQH0000806<i2Qf}<PotFUs0EYqq07w7;0AyiwVJ~oDa&#>)FfcGMEo5V6F*7z|G%aK@IWsLZIb&ljIWc8rEo5e8Ibk+3F*0RgWG!PbFfcB2Zeeh6c`k5aa&dKKbd8eFYuhjs$7R=b0?lC;1sQw@f|LX@Vb7_TgkE|pJ%kc=D3meeSnf<^IhB-+Q1V~w(Eq6aR$qQ}OIHTFi1*(2tM~MI==x$7V}xgTI>0^zKK8>D^?YM%Ee!E8uI>>+{qP9RqaN~{hF3Yq&6cW_a6Sw-x)0LMkKI6Cw#<U-`)_9cT~r*q=*%T2l4nAi3$6JIyVyr(9`R&p>`rb7DJr4t-x6+h|A<|L+HMdA;b}9(t)Pqi;O4OJ_R_2QO@iIF-+pr1zns(N`8&8E1Z)J;pg)*g6buNd^&R624hU>Z!+r>D%36`*ghebur2o!g9wdX{VJR%r^-op_%X4lyd3GMDT`dHiP-FFSZs~v)rI5LyliNqCc(suZNI>8Df8XQ#@*e2Rf2f;TrMiRiyjGT%%1oD1(h0mktp8C|knl{3U13095n$GO{dJAV)gJI;r91nLbYd1qEbjEOWhwJcRE+atnB<};veBr>KNq7kP4hHK$MI<RDM_MYm}dF7AA})nJchMj!xwx3P)h>@6aWAK2mnA-ZBpp*Kz<Sc000mG002z@003lRbYU+paA9(EEif=JFfc7-V`eckHexg_WHLE3Ei^e}V=Xx`Wo0d7W@R~HHZn0XWnpA3V=yo<E^}^SaBz7paA9(Bb!BueV{&6lE=p!#U|?eCjmX)#`hvVU08mQ-0u%!j0000806<i2QdOpR1?B(%0CfQX022TJ00000000000HlEc0001OWprU=VRT_HaA9(EEif=JFfdR{0Rj{Q6aWAK2mnA-ZBj11b8rp-000aC000;O0000000000005+c7XbhOZDn*}WMOn+FD`Ila&#>)FfcGME@N_IP)h*<6ay3h000O8KvZo~ZtTFFmjM6(hXMcqNB{r;0000000000q=8!j003lRbYU-WVRCdWFfcGMFfC+bW-&81Vl*veGC4CXG&y5qEjck|Wi4c8WjSFsGBGk`VPq|1FfcGKb8ca9aCt6pVRCVGWpq$W0Rj{Q6aWAK2mnA-ZBpp*Kz<Sc000mG002z@0000000000005+cSOWk6WMOn+FD`Ila&#>)FfcGMEo5V6F*7z|G%aK@IWsLZIb&ljIWc8rEo5e8Ibk+3F*0RgWG!PbFfcB2Zeeh6c`k5aa&dKKbS`6ZV^B*41^@s600aO80C)ia0M!Ek0000",
+          "one_hot_encoder_model": "P)h>@6aWAK2mnA-ZBmr<^&r;(003zL000vJ003=ebYWy+bYU-WVRCdWFfcGMFpZD9PQySDMSDJDYG-99u}R#bNI@ckigq=4$BD(hG&@T{<bP)g0+a%YW{RtG?$w-Ou$U6`5csGt;&39BBJ!(pR*i&`nbf1FeUP0Wf+0SXW1#|>93?>)p>MjT?N&{<t~brHf{Xu5oTlJQ^GemKUZ8vTi@JDuG9|pK)LU%Z<*nJSUuaX1;-foYX+FaVy|Hxf-_Tw}Vh&uGkR@ih3$|oh$VEK_t3L+}hxmX=pdZmDs$lXz<TnU&;b_Ec<>?<|zm>w7uE+oWMC&gO=K1CWP)h>@6aWAK2mnA-ZBjhoz+nym000aC000;O003=ebYWy+bYU+paA9(EEif=JFfcA-a$`#_N@ieSU}8}C`eh0LP)h>@6aWAK2mnA-ZBi7aiO7Bd001xo002k;003lRbYU-WVRCdWFfcGMFfB7THDWL@I5I6}Ha2A~G+{YqEjc%0Vl8AeHD)(AH92N5I5{n2FfcGKb8ca9aCt6pVRCVGWpsT~O-m~=6is8TE_C4{Lk4D10v3fa%)F`Nw7Afnh=`~=c|6iiqQlF~)Ff4^7W^6hK!1q0wu&N{z~z3NbMLt!XNTu8L4=V`NH91p(h6v^i4dAw4{d#k;A|XVuuE{kVl>MV?4KO1*^w~+|JmV<ECs=67t{5jaPqn~lZ)a(T4>)wyG`2Eg>?WRcoWeTsbwiEhdk^De$ZJBpxGvB`Pp~!JLv;Vu!p@T@43-g-Ty_aAHY5^W>$IfF!Do6Yje%TNPtNGu9x3QV~e_?%L$Kogy{AUguT@qoZGQ<+|>8HluqQr3Hs7_WNtE&tk0}7<Dp|AQ-##IW&Nv1R*7;}`nCoj=8R9KFh)!uy;$vXo-HaMNdx&|T{%%y_H?W@>nowHoQAA|NDMSUVXzF@hbCw|o&KF7dc07)Q=0Z-#dgf&h{x@%!MM<QJ5s$|b(35wHOMlR@2M<J(>zVmUYvFRBuS*Y=^*cI`#}IN_}W0|4F1X+P)h>@6aWAK2mnA-ZBmla6v7e!000mG002z@003lRbYU+paA9(EEif=JFfc7MH#K4~FgP+TW;QluEi_>{Wi2^3Vqz_1G&N>7H#IqCFgQ6aV=yo<E^}^SaBz7paA9(Bb!BueV{&6lE=p!#U|?eSx#)h+xqnt>08mQ-0u%!j0000806<i2Qk3-dAlCo@0BHdL022TJ00000000000HlEc0001OWprU=VRT_HaA9(EEif=JFfdR{0Rj{Q6aWAK2mnA-ZBjhoz+nym000aC000;O0000000000005+c2mt^9ZDn*}WMOn+FD`Ila&#>)FfcGME@N_IP)h*<6ay3h000O8KvZo~6s3vCegOagFaiJoNB{r;0000000000q=8HU003lRbYU-WVRCdWFfcGMFfB7THDWL@I5I6}Ha2A~G+{YqEjc%0Vl8AeHD)(AH92N5I5{n2FfcGKb8ca9aCt6pVRCVGWpq$W0Rj{Q6aWAK2mnA-ZBmla6v7e!000mG002z@0000000000005+cFarPpWMOn+FD`Ila&#>)FfcGMEi*SYVlXf`GA(8{Hf1d|VL4?jIX7ZrEo3w`W;ZuAIc6|8IW1!_FfcB2Zeeh6c`k5aa&dKKbS`6ZV^B*41^@s600aO80C)ia0IdT60000"
+        }
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "91822ab6-6e0c-40e2-90dc-f692420a631c",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "7077b3fc-9cc1-4365-a311-0f61cca62a81",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.encode_categorical_0.1",
+      "parameters": {
+        "operator": "One-hot encode",
+        "one_hot_encode_parameters": {
+          "invalid_handling_strategy": "Keep",
+          "drop_last": false,
+          "output_style": "Columns",
+          "input_column": "housing"
+        },
+        "ordinal_encode_parameters": {
+          "invalid_handling_strategy": "Replace with NaN"
+        }
+      },
+      "trained_parameters": {
+        "one_hot_encode_parameters": {
+          "_hash": -1767228197713558300,
+          "string_indexer_model": "P)h>@6aWAK2mnb`ZBjHRe9PSc003nH000vJ003=ebYWy+bYU-WVRCdWFfcGMFnx|sOT$1ANAG@&Ij2j~CMou+mmZ3O;x&xfNfWyNoZS^`$#-{*ASmed$9r$)0=>Z)VF#X%3Ip~dsThz?${IBgrp%-s5>M{9cbeXa4_=dj0@7qDCbR)|Ra-UfrfQq(y4n`7_)o-f@=nSdRjP7@_T8;Y@$#f){E_VHb&b^;o2Gr<3L-w*14{V<BRXwp?_SX?;)y5-;&Tc)-FPEYA{)Bie?B$2?{)M!$_bbY&@^B+>HeQAF?;^i{rktR`{G213v|bt`0*S_w1Md*lk3m76nmKGs}E310|XQR000O8NmOl8J~Nr}4gdfE3;+NC7ytkOZDn*}WMOn+FD`Ila&#>)FfcGME@N_IOD;-gU|?WkI9;P|0sv4;0|XQR000O8NmOl8K?7CXmjM6(jRF7wNB{r;WMOn+FK}UUbS*G2FfcGJW@KhDH!@;kEoCxgVJ$RdGche;F)}qRWo9-rGG#DhV_{`uEn_e+FfMa$VQ_GHE^uLTadl;MjZ$4}+b|TB-OM#C&?f~M{15~w>BxjVr*0DZlDDyk5lS8kV-z`-Iy2c$C8ed5{FBnZ)4#QwudV9`^hMlz&e1(O7fr@zF-CZb&wAK{!oyyeqHaTr$`W7J`a)_U5JI2AJvjHesNwAUrGuOUzrLxQgVUAL2WqFqZlJz4&7AAs7iRWLlpMS0*d-qo&xA5#t@$l>v4@Tuq@fC9H}t+xqJ&Y;DctP*BRdGS+#n3XLqEjLpo6^N{OR2FrJeY{2D>e<_29JbokRchm4HDA;Su<O1ISzy^a!c-CF64rA=o+(yB69MbwxfTEMgHNM=uoSN--#|7Q!-J->_0xo^#8|qjN{??Of0iHC8WXmiDMDgvt#a{kWqQFIUu)EWmH{fA8@vyp1${2fOkrs!M=pb!B-`nePjw=m=gQmT!O+G(1yc1N7)F0(dQ#KbMGn+Xnnx>h^Xc?U=<8i`(67QK-Bf$zd-0NiL+!1_PO&$U&N>d77ldc+mfnB$4c=Sw1`p!Vor|z}hG95&r;CO9KQH0000807+DBQrmO=vJwCQ01yBG08Ib@0AyiwVJ|LlVRCdWFfcGMFfC?eW-&K1Vqz_2GG$>cG-NX|EnzV-H7#XkHZwA1Fk@q3Wn(R4FfcGKb8ca9aCt6pVRCVGWpplMa$`#_N@ieSU}E?u`r&Qi&Q%!zP)h*<6ay3h000O8NmOl8G$(w^-2eapWdQ&H6951J0000000000q=5hc003=ebYWy+bYU-WVRCdWFfcGMFi=YY0u%!j0000807+DBQa&@8@(ut101N;C02lxO00000000000HlEq0RRAPWprU=VRT_HE^uLTbS*G2FfcGKV{&6qO928D0~7!N00;m{RBcj016ACY0RRAv0ssI=00000000000001_fl>hg0AyiwVJ~oDa&#>)FfcGMEoNk9F*h<|Vl8DdWnnEeWHT`>VKFi_EoEjlGcsi`V`E`uV=ZGaFfcB2Zeeh6c`k5aa&dKKbWlqH0u%!j0000807+DBQrmO=vJwCQ01yBG08Ib@00000000000HlFW0{{SIVRT_HE^uLTbS*G2FfcGJW@KhDH!@;kEoCxgVJ$RdGche;F)}qRWo9-rGG#DhV_{`uEn_e+FfMa$VQ_GHE^uLTadl;ME@N_IP)h{{000001ONm8cmV(a%mV-b000",
+          "one_hot_encoder_model": "P)h>@6aWAK2mnb`ZBkjm+*s5A003zL000vJ003=ebYWy+bYU-WVRCdWFfcGMFm;Z*P6IIzMSDJD>W$@9v_{z$A%R2$6|FV#&XN^=X*{MN%D>|Tfs!K46j%42GY4=UOMwv*e<;l8_M}Qi{#3!MnNTW|dX4my<T1K55pUb^(19$0ieShv_NE`qx;MjSxZiYe-oF!<CB;TwE3Nbj!*^WiwyVq3!YicJX5Q(YcKx7DtF%3aEjIE2mYAzNB;PhdAzPPD@>JzNwtu-j;U`Y{1&hEqqc7CK9^>TcIewu(n~6Cw99xrStX|$OWS7|6A6om{yRr$_+p^=`4^T@31QY-O00;m{RBck5X*0hL0000C0000O0001OWprU=VRT_HE^uLTbS*G2FfcGKV{&6lE=p!#U|?d1xN|TP08mQ<1QY-O00;m{RBcierHROX0RR9n0ssI=0001FVRT_HaA9(EEif=JFfc7OV=*{0GBPkNF=07oEi`5|V=ZE3Fk&rbH8V3eF*IgkFg0N<V=yo<E^}^SaBz7paA9(Bb!BvYQcX)MF%(T>tuA!oB0~mdQ34i)G0eQF<FvTYors92J9#|PPNKuh%+w@Rsuuhi{y=|-x3-ERn84+JoOAEFA!mo@F+qfpPDn5~Ez$~TvxyLzTMuo0iQsG;V6aPY!D2Ma66~KGt=W+<|Nq(HjVuMhXcyD<p>XoLHj|6uL0V|vLc2}c)P;2bAb1ne6{%$@D~CMn2Y%354WQX3YWdlB@;m7ROt6Q&C-1q@S>69ds~^BVFlJVH@-Xs4N^5h?#Ylii{;rqbNn?w;qRR=7c!cQo4}`td9Gu&+bllYUyp&Gl!U_7)cw}xelC00HGvlFSAyb9axn=#UM^=e)R{FLEAm)rurZ7fKAiY@aa-J<JAV~xHVO=><RQ7bNHR~&(t(=Cef=CQBKw+>9*@q@*Je~fXB6_?~yi=O?V#RjM<A}%Yt--j^c{@_QTy>LNDmBP5mG7x6P18J0(q5c(|0GGIy6GVAZTmq0FZkL(=nVeK8&FFF1QY-O00;m{RBcj{(G<cG0000G0000@0001FVRT_HE^uLTbS*G2FfcGJHDfV2GcqzTEiqv^W-T;kHDfJeWiVnbWi>N1H!(D3VlXvfEn_e+FfMa$VQ_GHE^uLTadl;ME@N_IOD;-gU|?Wk__^qQ&$)kAW&lu20Rj{Q6aWAK2mnb`ZBkjm+*s5A003zL000vJ0000000000005+c00000ZDn*}WMOn+FK}UUbS*G2FfcGsO928D0~7!N00;m{RBck5X*0hL0000C0000O00000000000001_fdv5o0BvP-VPs)+VJ|LlVRCdWFfcGMFfL<qV^B*00u%!j0000807+DBQWT|$$bJC;05Ado07w7;00000000000HlFQ0RRAGVRT_HaA9(EEif=JFfc7OV=*{0GBPkNF=07oEi`5|V=ZE3Fk&rbH8V3eF*IgkFg0N<V=yo<E^}^SaBz7paA9(Bb!Bu=O928D0~7!N00;m{RBcj{(G<cG0000G0000@00000000000001_fh_|70AyiwVJ|LlVRCdWFfcGMFfBD>F*q|aGB7PMVL4_kG-fqpEn;ObVl8DgGcz|aG-hHjHDN7dFfcGKb8ca9aCt6pVRCVGWpplMa$`_S1qJ{B000C41ORve0062300000"
+        }
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "b3e53068-f5a3-407f-a855-8fa2dd8c9e88",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "f9b0953e-8a5e-4d95-9d22-62dadcc7956b",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.custom_formula_0.1",
+      "parameters": {
+        "output_column": "random_01",
+        "formula": "random(1337)"
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "7077b3fc-9cc1-4365-a311-0f61cca62a81",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "ca9d66f9-e298-40c9-9968-9f19bf2c8b9d",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.custom_formula_0.1",
+      "parameters": {
+        "output_column": "stratum_row_num",
+        "formula": "row_number() over (partition by credit_default order by random_01)"
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "f9b0953e-8a5e-4d95-9d22-62dadcc7956b",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "4450abb0-f04d-4fcd-bfd2-dbc4326f2856",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.custom_formula_0.1",
+      "parameters": {
+        "output_column": "stratum_rank_pct",
+        "formula": "stratum_row_num / (max(stratum_row_num) over (partition by credit_default))"
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "ca9d66f9-e298-40c9-9968-9f19bf2c8b9d",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "71557890-85ba-4081-96fe-a71878971a6a",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.custom_formula_0.1",
+      "parameters": {
+        "output_column": "dataset",
+        "formula": "case when (stratum_rank_pct < 0.7) then \"train\" when (stratum_rank_pct < 0.85) then \"validation\" else \"test\" end"
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "4450abb0-f04d-4fcd-bfd2-dbc4326f2856",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "f2b92ec8-b853-4678-8a66-b0acbf93b885",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.manage_columns_0.1",
+      "parameters": {
+        "operator": "Drop column",
+        "drop_column_parameters": {
+          "column_to_drop": "random_01"
+        }
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "71557890-85ba-4081-96fe-a71878971a6a",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "c9da3327-2839-4c50-bb9b-7b682acfd6e4",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.manage_columns_0.1",
+      "parameters": {
+        "operator": "Drop column",
+        "drop_column_parameters": {
+          "column_to_drop": "stratum_row_num"
+        }
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "f2b92ec8-b853-4678-8a66-b0acbf93b885",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "node_id": "e61491fa-5fc6-4761-a5f2-4175fdc3ac72",
+      "type": "TRANSFORM",
+      "operator": "sagemaker.spark.manage_columns_0.1",
+      "parameters": {
+        "operator": "Drop column",
+        "drop_column_parameters": {
+          "column_to_drop": "stratum_rank_pct"
+        }
+      },
+      "inputs": [
+        {
+          "name": "df",
+          "node_id": "c9da3327-2839-4c50-bb9b-7b682acfd6e4",
+          "output_name": "default"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "default"
+        }
+      ]
+    }
+  ]
+}

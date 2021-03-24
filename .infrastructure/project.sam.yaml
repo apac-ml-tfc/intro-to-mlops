@@ -45,6 +45,47 @@ Parameters:
   #   AllowedPattern: "^[a-zA-Z0-9](-*[a-zA-Z0-9]){0,62}(,[a-zA-Z0-9](-*[a-zA-Z0-9]){0,62})*$"
   #   ConstraintDescription: The ProjectId can be up to 12 characters, lowercase letters (a-z) only.
 
+Mappings: 
+  RegionMap:
+    af-south-1:
+      DataScienceImageURI: 'arn:aws:sagemaker:af-south-1:559312083959:image/datascience-1.0'
+    ap-east-1:
+      DataScienceImageURI: 'arn:aws:sagemaker:ap-east-1:493642496378:image/datascience-1.0'
+    ap-northeast-1: 
+      DataScienceImageURI: 'arn:aws:sagemaker:ap-northeast-1:102112518831:image/datascience-1.0'
+    ap-northeast-2:
+      DataScienceImageURI: 'arn:aws:sagemaker:ap-northeast-2:806072073708:image/datascience-1.0'
+    ap-south-1:
+      DataScienceImageURI: 'arn:aws:sagemaker:ap-south-1:394103062818:image/datascience-1.0'
+    ap-southeast-1:
+      DataScienceImageURI: 'arn:aws:sagemaker:ap-southeast-1:492261229750:image/datascience-1.0'
+    ap-southeast-2:
+      DataScienceImageURI: 'arn:aws:sagemaker:ap-southeast-2:452832661640:image/datascience-1.0'
+    ca-central-1:
+      DataScienceImageURI: 'arn:aws:sagemaker:ca-central-1:310906938811:image/datascience-1.0'
+    eu-central-1: 
+      DataScienceImageURI: 'arn:aws:sagemaker:eu-central-1:936697816551:image/datascience-1.0'
+    eu-north-1:
+      DataScienceImageURI: 'arn:aws:sagemaker:eu-north-1:243637512696:image/datascience-1.0'
+    eu-south-1:
+      DataScienceImageURI: 'arn:aws:sagemaker:eu-south-1:592751261982:image/datascience-1.0'
+    eu-west-1:
+      DataScienceImageURI: 'arn:aws:sagemaker:eu-west-1:470317259841:image/datascience-1.0'
+    eu-west-2:
+      DataScienceImageURI: 'arn:aws:sagemaker:eu-west-2:712779665605:image/datascience-1.0'
+    eu-west-3:
+      DataScienceImageURI: 'arn:aws:sagemaker:eu-west-3:615547856133:image/datascience-1.0'
+    sa-east-1:
+      DataScienceImageURI: 'arn:aws:sagemaker:sa-east-1:782484402741:image/datascience-1.0'
+    us-east-1: 
+      DataScienceImageURI: 'arn:aws:sagemaker:us-east-1:081325390199:image/datascience-1.0'
+    us-east-2:
+      DataScienceImageURI: 'arn:aws:sagemaker:us-east-2:429704687514:image/datascience-1.0'
+    us-west-1: 
+      DataScienceImageURI: 'arn:aws:sagemaker:us-west-1:742091327244:image/datascience-1.0'
+    us-west-2: 
+      DataScienceImageURI: 'arn:aws:sagemaker:us-west-2:236514542706:image/datascience-1.0'
+
 Resources:
 
 ######## SHARED BETWEEN SECTIONS ########
@@ -216,6 +257,21 @@ Resources:
         InstanceType: system
       UserProfileName: !Ref StudioUserName
 
+  DataScienceApp:
+    Type: 'AWS::SageMaker::App'
+    DependsOn:
+      - UserProfile
+    Properties: 
+      AppName: datascience-1-0-ml-t3-medium-stackprovisioned
+      AppType: KernelGateway
+      DomainId: !GetAtt ExistingDomainDetails.DomainId
+      ResourceSpec: 
+        InstanceType: ml.t3.medium
+        SageMakerImageArn: !FindInMap
+          - RegionMap
+          - !Ref 'AWS::Region'
+          - DataScienceImageURI
+      UserProfileName: !Ref StudioUserName
 
   # Actual resource instantiation: Clone the CodeRepo into the user's SMStudio EFS home folder
   # (And also enable SageMaker Projects permissions)

@@ -141,7 +141,7 @@ def create_featurestore_output(output_name, feature_group_name):
     #     }
     #   ],
     # }
-    return ProcessingJobOutput(
+    return ProcessingOutput(
         output_name=output_name,
         app_managed=True,
         feature_store_output=FeatureStoreOutput(feature_group_name="hi"),

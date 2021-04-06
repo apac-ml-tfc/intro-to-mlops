@@ -43,11 +43,14 @@ if __name__ == "__main__":
 
     
     # Drop several columns
-    df = df.drop(["txn_id", "txn_timestamp", "dataset"], axis=1)
+    df = df.drop(['Day Charge', 'Eve Charge', 'Night Charge', 'Intl Charge','Phone'], axis=1)
+    df['Area Code'] = df['Area Code'].astype(object)
+    model_data = pd.get_dummies(df)
+    model_data = pd.concat([model_data['Churn?_True.'], model_data.drop(['Churn?_False.', 'Churn?_True.'], axis=1)], axis=1)
     
     # Split the data
     train_data, validation_data, test_data = np.split(
-        df.sample(frac=1, random_state=1729),
+        model_data.sample(frac=1, random_state=1729),
         [int(0.7 * len(df)), int(0.9 * len(df))],
     )
 

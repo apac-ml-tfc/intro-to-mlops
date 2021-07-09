@@ -123,7 +123,7 @@ def get_pipeline(
     )
     input_data = ParameterString(
         name="InputDataUrl",
-        default_value=f"s3://sagemaker-project-p-1eun2p80mbee/churn.csv",  # Change this to point to the s3 location of your raw input data.
+        default_value="",  # TODO: Change this to point to the s3 location of your raw input data.
     )
 
     # Processing step for feature engineering
@@ -157,7 +157,7 @@ def get_pipeline(
     image_uri = sagemaker.image_uris.retrieve(
         framework="xgboost",  # we are using the Sagemaker built in xgboost algorithm
         region=region,
-        version="1.0-1",
+        version="1.2-2",
         py_version="py3",
         instance_type=training_instance_type,
     )
@@ -178,7 +178,6 @@ def get_pipeline(
         gamma=4,
         min_child_weight=6,
         subsample=0.7,
-        silent=0,
     )
     step_train = TrainingStep(
         name="CustomerChurnTrain",
@@ -271,7 +270,7 @@ def get_pipeline(
             property_file=evaluation_report,
             json_path="binary_classification_metrics.accuracy.value",  # This should follow the structure of your report_dict defined in the evaluate.py file.
         ),
-        right=0.8,  # You can change the threshold here
+        right=0.6,  # You can change the threshold here
     )
     step_cond = ConditionStep(
         name="CustomerChurnAccuracyCond",

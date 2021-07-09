@@ -35,24 +35,30 @@ if __name__ == "__main__":
     base_dir = "/opt/ml/processing"
 
     logger.info("Reading downloaded data from /opt/ml/processing/input/")
-    
+
     if len(glob.glob(f"{base_dir}/input/*.csv"))>1:
         df = pd.concat(map(pd.read_csv, glob.glob(f"{base_dir}/input/*.csv")))
     else:
         df=pd.read_csv(glob.glob(f"{base_dir}/input/*.csv")[0])
 
-    
-    # Drop several columns
-    df = df.drop(['Day Charge', 'Eve Charge', 'Night Charge', 'Intl Charge','Phone'], axis=1)
-    df['Area Code'] = df['Area Code'].astype(object)
-    model_data = pd.get_dummies(df)
-    model_data = pd.concat([model_data['Churn?_True.'], model_data.drop(['Churn?_False.', 'Churn?_True.'], axis=1)], axis=1)
-    
+    # Drop pseudo-feature-store columns if present:
+    model_data = df.drop(columns=["txn_id", "txn_timestamp"], errors="ignore")
+
+    # We could do other processing here (e.g. dropping columns, etc) - but this data has already
+    # been prepared in Data Wrangler, so no need!
+
     # Split the data
-    train_data, validation_data, test_data = np.split(
-        model_data.sample(frac=1, random_state=1729),
-        [int(0.7 * len(df)), int(0.9 * len(df))],
-    )
+    if "dataset" in model_data:
+        train_data = model_data[model_data["dataset"] == "train"].drop(columns=["dataset"])
+        validation_data = model_data[
+            model_data["dataset"] == "validation"
+        ].drop(columns=["dataset"])
+        test_data = model_data[model_data["dataset"] == "test"].drop(columns=["dataset"])
+    else:
+        train_data, validation_data, test_data = np.split(
+            model_data.sample(frac=1, random_state=1729),
+            [int(0.7 * len(df)), int(0.9 * len(df))],
+        )
 
     pd.DataFrame(train_data).to_csv(
         f"{base_dir}/train/train.csv", header=False, index=False
